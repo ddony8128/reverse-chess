@@ -1,0 +1,38 @@
+{
+  "plugins": [
+    "react",
+    "react-hooks",
+    "react-refresh",
+    "@tanstack/query",
+    "prettier"
+  ],
+  "rules": {
+    "react-refresh/only-export-components": [
+      "warn",
+      {
+        "allowConstantExport": true
+      }
+    ],
+    "prettier/prettier": [
+      "error",
+      {
+        "usePrettierrc": true
+      }
+    ],
+    "no-unused-vars": "off",
+    "@typescript-eslint/no-unused-vars": [
+      "warn",
+      {
+        "argsIgnorePattern": "^_", // _param 이런 건 허용
+        "varsIgnorePattern": "^_", // _unused 이런 변수도 허용
+        "caughtErrorsIgnorePattern": "^_" // try (e) 도 _e면 무시
+      }
+    ],
+    "react-hooks/exhaustive-deps": "warn",
+    "react/react-in-jsx-scope": "off",
+    "@tanstack/query/exhaustive-deps": "warn",
+    "@typescript-eslint/no-unsafe-argument": "warn",
+    "@typescript-eslint/no-explicit-any": "warn",
+    "@typescript-eslint/no-floating-promises": "warn"
+  }
+}
