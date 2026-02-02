@@ -2,16 +2,14 @@ import { Board } from './board';
 import {
   Color,
   GameState,
-  Move,
-  Piece,
   PieceType,
   reverseColor,
-  type Location,
   GameError,
   locationToKey,
   GameEndReason,
   Rank,
 } from './types';
+import type { Move, Piece, Location } from './types';
 
 export interface GameAPI {
   progressTurn(
@@ -142,8 +140,8 @@ export class Game implements GameAPI {
     let success: boolean = false;
     let end: boolean = false;
     let winner: Color | null = null;
-    let error: GameError | null = null;
-    let endReason: GameEndReason | null = null;
+    let error: GameError | undefined;
+    let endReason: GameEndReason | undefined;
     let realPromotion: PieceType | null = promotion ?? null;
 
     const opponent = reverseColor(color);
