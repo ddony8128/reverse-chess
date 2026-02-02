@@ -10,6 +10,7 @@ import {
   GameError,
   locationToKey,
   GameEndReason,
+  Rank,
 } from './types';
 
 export interface GameAPI {
@@ -62,6 +63,20 @@ export class Game implements GameAPI {
     this.turnCount++;
   }
 
+  private applyPromotionToMove(move: Move): Move[] {
+    const isPawn: boolean = move.piece?.type === PieceType.Pawn;
+    const isPromotionRank: boolean = move.piece?.color === Color.White ? move.to.rank === Rank.Rank8 : move.to.rank === Rank.Rank1;
+    if (isPawn && isPromotionRank) {
+      return [
+        { ...move, promotion: PieceType.Queen },
+        { ...move, promotion: PieceType.Rook },
+        { ...move, promotion: PieceType.Bishop },
+        { ...move, promotion: PieceType.Knight },
+      ];
+    }
+    return [move];
+  }
+
   private generateCandidateMoves(color: Color): Move[] {
     const ownPieces = this.board.getAllPieces(color);
 
@@ -83,7 +98,11 @@ export class Game implements GameAPI {
       }
     }
 
-    return captureMoves.length > 0 ? captureMoves : quietMoves;
+    const CandidateMoves = captureMoves.length > 0 ? captureMoves : quietMoves;
+
+    const promotedMoves = CandidateMoves.flatMap((move) => this.applyPromotionToMove(move));
+
+    return promotedMoves;
   }
 
   startGame(): { success: boolean; error?: GameError } {
@@ -122,9 +141,11 @@ export class Game implements GameAPI {
   } {
     let success: boolean = false;
     let end: boolean = false;
-    let winner: Color | null | undefined;
-    let error: GameError | undefined;
-    let endReason: GameEndReason | undefined;
+    let winner: Color | null = null;
+    let error: GameError | null = null;
+    let endReason: GameEndReason | null = null;
+    let realPromotion: PieceType | null = promotion ?? null;
+
     const opponent = reverseColor(color);
 
     if (color !== this.currentPlayer) {
@@ -136,20 +157,15 @@ export class Game implements GameAPI {
     const toKey = locationToKey(to);
     const legalMoves = this.getLegalMoves(color);
     const move = legalMoves.find(
-      (m) => locationToKey(m.from) === fromKey && locationToKey(m.to) === toKey,
+      (m) => locationToKey(m.from) === fromKey && locationToKey(m.to) === toKey && m.promotion === realPromotion,
     );
     if (!move) {
       error = GameError.InvalidMove;
       return { success, end, winner, error, endReason };
     }
 
-    const realMove = this.makeMove(from, to, promotion);
-    if (!realMove) {
-      error = GameError.InvalidMove;
-      return { success, end, winner, error, endReason };
-    }
     success = true;
-    this.applyMove(realMove);
+    this.applyMove(move);
     this.history.push(move);
     this.switchPlayer();
 
