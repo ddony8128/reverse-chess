@@ -1,9 +1,14 @@
 {
+  "scripts": {
+    "test": "vitest",
+    "test:watch": "vitest --watch"
+  },
   "devDependencies": {
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.8.1",
     "prettier-plugin-tailwindcss": "^0.7.2",
     "ts-node": "^10.9.2",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
   }
 }
