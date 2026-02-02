@@ -1,32 +1,35 @@
+import { useState } from 'react'
+import { MainMenuPage } from './pages/MainMenuPage'
+import { TutorialPage } from './pages/TutorialPage'
+import { SinglePlayPage } from './pages/SinglePlayPage'
+import { TwoPlayerPage } from './pages/TwoPlayerPage'
+
+export type Screen = 'menu' | 'tutorial' | 'single' | 'two'
+
 function App() {
+  const [screen, setScreen] = useState<Screen>('menu')
+
   return (
-    <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
-      <div className="space-y-6 text-center">
-        <h1 className="text-4xl font-bold tracking-tight">reverse-chess</h1>
-        <p className="text-muted-foreground">
-          Tailwind가 제대로 적용되었는지 확인하는 테스트 페이지입니다.
-        </p>
-
-        <div className="flex justify-center gap-4">
-          <button className="px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition">
-            기본 버튼
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
+      <header className="border-b px-6 py-4 flex items-center justify-between">
+        <h1 className="text-2xl font-bold tracking-tight">리버스 체스</h1>
+        {screen !== 'menu' && (
+          <button
+            className="text-sm text-muted-foreground hover:text-foreground transition"
+            onClick={() => setScreen('menu')}
+          >
+            메인 메뉴로
           </button>
-          <button className="px-4 py-2 rounded-md bg-secondary text-secondary-foreground hover:bg-secondary/80 transition">
-            세컨더리 버튼
-          </button>
-        </div>
+        )}
+      </header>
 
-        <div className="mt-6 flex justify-center gap-4">
-          <div className="w-10 h-10 rounded-full bg-destructive animate-bounce" />
-          <div className="w-10 h-10 rounded-full bg-accent animate-pulse" />
-        </div>
-
-        <p className="text-xs text-muted-foreground">
-          위 색상/애니메이션이 보이면 `index.css`의 Tailwind 설정이 잘 동작하는 것입니다.
-        </p>
-      </div>
+      <main className="flex-1 flex items-center justify-center px-4 py-6">
+        {screen === 'menu' && <MainMenuPage onSelect={setScreen} />}
+        {screen === 'tutorial' && <TutorialPage onExit={() => setScreen('menu')} />}
+        {screen === 'single' && <SinglePlayPage onExit={() => setScreen('menu')} />}
+        {screen === 'two' && <TwoPlayerPage onExit={() => setScreen('menu')} />}
+      </main>
     </div>
   )
 }
-
 export default App
