@@ -143,10 +143,25 @@ export class Game implements GameAPI {
       return { success, end, winner, error, endReason };
     }
 
+    const realMove = this.makeMove(from, to, promotion);
+    if (!realMove) {
+      error = GameError.InvalidMove;
+      return { success, end, winner, error, endReason };
+    }
     success = true;
-    this.applyMove(move);
+    this.applyMove(realMove);
     this.history.push(move);
     this.switchPlayer();
+
+
+    const isOnlyKingLeft = this.isOnlyKingLeft(opponent);
+    if (isOnlyKingLeft) {
+      end = true;
+      winner = opponent;
+      endReason = GameEndReason.OnlyKingLeft;
+      this.finishGame(opponent, GameEndReason.OnlyKingLeft);
+      return { success, end, winner, error, endReason };
+    }
 
     const { isInCheckmate } = this.checkForCheckmate(opponent);
     if (isInCheckmate) {
@@ -154,6 +169,7 @@ export class Game implements GameAPI {
       winner = opponent;
       endReason = GameEndReason.Checkmate;
       this.finishGame(opponent, GameEndReason.Checkmate);
+      return { success, end, winner, error, endReason };
     }
     const isStalemate = this.isStalemate(opponent);
     if (isStalemate) {
@@ -161,6 +177,7 @@ export class Game implements GameAPI {
       winner = null;
       endReason = GameEndReason.Stalemate;
       this.finishGame(null, GameEndReason.Stalemate);
+      return { success, end, winner, error, endReason };
     }
 
     const isLoneIsland = this.isLoneIsland(opponent);
@@ -169,14 +186,7 @@ export class Game implements GameAPI {
       winner = opponent;
       endReason = GameEndReason.LoneIsland;
       this.finishGame(opponent, GameEndReason.LoneIsland);
-    }
-
-    const isOnlyKingLeft = this.isOnlyKingLeft(opponent);
-    if (isOnlyKingLeft) {
-      end = true;
-      winner = opponent;
-      endReason = GameEndReason.OnlyKingLeft;
-      this.finishGame(opponent, GameEndReason.OnlyKingLeft);
+      return { success, end, winner, error, endReason };
     }
 
     return { success, end, winner, error, endReason };
@@ -255,6 +265,11 @@ export class Game implements GameAPI {
     }
 
     const captured = this.board.getPieceByLocation(to);
+
+
+    if (promotion && promotion === PieceType.King) {
+      return null;
+    }
 
     return {
       from,
