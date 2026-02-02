@@ -1,15 +1,39 @@
-import { Color, File, Rank, PieceType, indexToFile, indexToRank, fileToIndex, rankToIndex, locationToKey } from './types';
-import type { LocationKey, Location, Piece, Square } from './types';
+import {
+  Color,
+  File,
+  Rank,
+  PieceType,
+  indexToFile,
+  indexToRank,
+  fileToIndex,
+  rankToIndex,
+  locationToKey,
+  pieceToKey,
+} from './types';
+import type { LocationKey, Location, Piece, Square, PieceKey } from './types';
 
-export class Board {
+export interface BoardAPI {
+  getPieceByLocation(location: Location): Piece | null;
+  getAllPieces(color?: Color): Piece[];
+  getAllPiecesByPieceKey(pieceKey: PieceKey): Piece[];
+  getMovableLocations(piece: Piece): Location[];
+  setPiece(location: Location, piece: Piece | null): void;
+  movePiece(piece: Piece, destination: Location): Piece | null;
+  changePieceType(piece: Piece, newType: PieceType): void;
+  getCapturablePieces(piece: Piece): Piece[];
+  canPieceAttackLocation(attacker: Piece, target: Location): boolean;
+  isLocationAttacked(target: Location, byColor: Color): boolean;
+}
+
+export class Board implements BoardAPI {
   private squares: Square[] = [];
   private pieceByLocation: Partial<Record<LocationKey, Piece>> = {};
+  private pieceBuckets: Partial<Record<PieceKey, Piece[]>> = {};
 
-
-  
   constructor() {
     this.initSquares();
     this.initPieces();
+    this.initPieceBuckets();
   }
 
   private initSquares() {
@@ -88,12 +112,19 @@ export class Board {
     }
   }
 
+  private initPieceBuckets() {
+    for (const piece of Object.values(this.pieceByLocation)) {
+      if (!piece) continue;
+      const key = pieceToKey(piece);
+      const bucket = this.pieceBuckets[key] ?? [];
+      bucket.push(piece);
+      this.pieceBuckets[key] = bucket;
+    }
+  }
 
   private getIndices(location: Location): { fileIndex: number; rankIndex: number } | null {
-
-    const fileIndex : number = fileToIndex(location.file);
-    const rankIndex : number = rankToIndex(location.rank);
-
+    const fileIndex: number = fileToIndex(location.file);
+    const rankIndex: number = rankToIndex(location.rank);
 
     if (fileIndex === -1 || rankIndex === -1) {
       return null;
@@ -122,6 +153,17 @@ export class Board {
     const key = locationToKey(location);
     const piece = this.pieceByLocation[key];
     return piece ?? null;
+  }
+
+  getAllPiecesByPieceKey(pieceKey: PieceKey): Piece[] {
+    const pieces = this.pieceBuckets[pieceKey];
+    return pieces ?? [];
+  }
+
+  getAllPieces(color?: Color): Piece[] {
+    return Object.values(this.pieceByLocation).filter((piece) =>
+      color ? piece?.color === color : true,
+    );
   }
 
   private isOccupied(location: Location): boolean {
@@ -189,11 +231,8 @@ export class Board {
       return moves;
     }
 
-
-    
     switch (piece.type) {
       case PieceType.Pawn: {
-
         const direction = piece.color === Color.White ? 1 : -1;
         const startRank = piece.color === Color.White ? Rank.Rank2 : Rank.Rank7;
 
@@ -223,7 +262,6 @@ export class Board {
         break;
       }
       case PieceType.Knight: {
-
         const knightOffsets = [
           { df: 1, dr: 2 },
           { df: 2, dr: 1 },
@@ -276,7 +314,6 @@ export class Board {
         return this.generateSlidingMoves(piece, from, directions);
       }
       case PieceType.King: {
-
         const kingOffsets = [
           { df: 1, dr: 0 },
           { df: 1, dr: 1 },
@@ -304,35 +341,59 @@ export class Board {
     return moves;
   }
 
-  movePiece(piece: Piece, destination: Location): Piece | null {
-    if (piece.location) {
-        const from = piece.location;
-        const fromIndex = this.getSquareIndex(from);
-        if (fromIndex !== null) {
-            this.squares[fromIndex].piece = null;
-            const fromKey = locationToKey(from);
-            delete this.pieceByLocation[fromKey];
-        }
+  private removeFromBuckets(piece: Piece): void {
+    const pieceKey = pieceToKey(piece);
+    const bucket = this.pieceBuckets[pieceKey];
+    if (!bucket) {
+      return;
+    }
+    const index = bucket.indexOf(piece);
+    if (index === -1) return;
+    bucket.splice(index, 1);
+  }
+
+  public setPiece(location: Location, piece: Piece | null): void {
+    const index = this.getSquareIndex(location);
+    if (index === null) {
+      return;
     }
 
-    const toIndex = this.getSquareIndex(destination);
-    if (toIndex === null) {
+    const key = locationToKey(location);
+    const existing = this.squares[index].piece;
+
+    if (existing) {
+      this.removeFromBuckets(existing);
+      delete this.pieceByLocation[key];
+      existing.location = undefined;
+    }
+
+    this.squares[index].piece = piece;
+
+    if (piece) {
+      this.pieceByLocation[key] = piece;
+      piece.location = location;
+
+      const bucketKey = pieceToKey(piece);
+      const bucket = this.pieceBuckets[bucketKey] ?? [];
+      if (!bucket.includes(piece)) {
+        bucket.push(piece);
+      }
+      this.pieceBuckets[bucketKey] = bucket;
+    }
+  }
+
+  movePiece(piece: Piece, destination: Location): Piece | null {
+    if (!piece.location) {
       return null;
     }
 
-    const captured = this.squares[toIndex].piece ?? null;
+    const from = piece.location;
+    const captured = this.getPieceByLocation(destination);
 
-    this.squares[toIndex].piece = piece;
-    
-    const toKey = locationToKey(destination);
-    this.pieceByLocation[toKey] = piece;
+    this.setPiece(from, null);
+    this.setPiece(destination, piece);
 
-    piece.location = destination;
-    if (captured) {
-      captured.location = undefined;
-    }
-
-    return captured;
+    return captured ?? null;
   }
 
   changePieceType(piece: Piece, newType: PieceType): void {
@@ -353,7 +414,7 @@ export class Board {
     return result;
   }
 
-  private canPieceAttackLocation(attacker: Piece, target: Location): boolean {
+  canPieceAttackLocation(attacker: Piece, target: Location): boolean {
     if (!attacker.location) {
       return false;
     }
@@ -417,16 +478,10 @@ export class Board {
       case PieceType.Queen: {
         const bishopLike =
           Math.abs(df) === Math.abs(dr) &&
-          this.canPieceAttackLocation(
-            { ...attacker, type: PieceType.Bishop },
-            target,
-          );
+          this.canPieceAttackLocation({ ...attacker, type: PieceType.Bishop }, target);
         const rookLike =
           (df === 0 || dr === 0) &&
-          this.canPieceAttackLocation(
-            { ...attacker, type: PieceType.Rook },
-            target,
-          );
+          this.canPieceAttackLocation({ ...attacker, type: PieceType.Rook }, target);
         return bishopLike || rookLike;
       }
       case PieceType.King: {

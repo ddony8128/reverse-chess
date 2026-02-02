@@ -31,7 +31,6 @@ export const File = {
 } as const;
 export type File = (typeof File)[keyof typeof File];
 
-
 export const Rank = {
   Rank1: 1,
   Rank2: 2,
@@ -91,3 +90,44 @@ export type Piece = {
   type: PieceType;
   location?: Location;
 };
+
+export type PieceKey = `${Color}_${PieceType}`;
+
+export function pieceToKey(piece: Piece): PieceKey {
+  return `${piece.color}_${piece.type}` as PieceKey;
+}
+
+export const GameState = {
+  Initial: 'initial',
+  InPlay: 'inPlay',
+  Finished: 'finished',
+} as const;
+
+export type GameState = (typeof GameState)[keyof typeof GameState];
+
+export type Move = {
+  from: Location;
+  to: Location;
+  piece?: Piece;
+  captured?: Piece | null;
+  promotion?: PieceType | null;
+};
+
+export const GameError = {
+  NotYourTurn: 'Not your turn',
+  GameAlreadyStarted: 'Game already started',
+  GameNotStarted: 'Game not started',
+  GameFinished: 'Game finished',
+  InvalidMove: 'Invalid move',
+} as const;
+
+export type GameError = (typeof GameError)[keyof typeof GameError];
+
+export const GameEndReason = {
+  Checkmate: 'Checkmate',
+  Stalemate: 'Stalemate',
+  LoneIsland: 'Lone island',
+  OnlyKingLeft: 'Only king left',
+} as const;
+
+export type GameEndReason = (typeof GameEndReason)[keyof typeof GameEndReason];
