@@ -24,6 +24,10 @@ export interface GameAPI {
     error?: GameError;
     endReason?: GameEndReason;
   };
+  getBoard(): Board;
+  getCurrentPlayer(): Color;
+  getWinner(): Color | null;
+  getEndReason(): GameEndReason | null;
   startGame(): { success: boolean; error?: GameError };
   getLegalMoves(color: Color): Move[];
   checkForCheck(color: Color): { isInCheck: boolean; checkers: Piece[] };
@@ -44,9 +48,9 @@ export class Game implements GameAPI {
   private cachedLegalMoves: Partial<Record<number, Move[]>>;
   private cachedCheck: Partial<Record<number, { isInCheck: boolean; checkers: Piece[] }>>;
 
-  constructor(board: Board | undefined) {
+  constructor(board?: Board, currentPlayer?: Color) {
     this.board = board ?? new Board();
-    this.currentPlayer = Color.Black;
+    this.currentPlayer = currentPlayer ?? Color.Black;
     this.winner = null;
     this.endReason = null;
     this.state = GameState.Initial;
@@ -101,6 +105,14 @@ export class Game implements GameAPI {
     const promotedMoves = CandidateMoves.flatMap((move) => this.applyPromotionToMove(move));
 
     return promotedMoves;
+  }
+
+  getBoard(): Board {
+    return this.board;
+  }
+
+  getCurrentPlayer(): Color {
+    return this.currentPlayer;
   }
 
   startGame(): { success: boolean; error?: GameError } {
@@ -213,13 +225,17 @@ export class Game implements GameAPI {
 
     if (isCurrentPlayer && cached) return cached;
 
-    const candidateMoves = this.generateCandidateMoves(color);
-    const legalMoves = candidateMoves.filter((move) => !this.checkForNextCheck(move, color));
+    const legalMoves = this.getLegalMovesNoCache(color);
 
     if (isCurrentPlayer) {
       this.cachedLegalMoves[turn] = legalMoves;
     }
     return legalMoves;
+  }
+
+  getLegalMovesNoCache(color: Color): Move[] {
+    const candidateMoves = this.generateCandidateMoves(color);
+    return candidateMoves.filter((move) => !this.checkForNextCheck(move, color));
   }
 
   checkForCheck(color: Color): { isInCheck: boolean; checkers: Piece[] } {
