@@ -221,7 +221,7 @@ export function TutorialPage() {
 
         {/* Description */}
         <div className="max-w-md text-left mb-8 px-4">
-          <div className="text-foreground text-base leading-relaxed text-left min-h-16">
+          <div className="text-foreground text-base leading-relaxed text-left min-h-22">
             {step.description}
           </div>
         </div>
