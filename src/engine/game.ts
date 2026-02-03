@@ -30,6 +30,7 @@ export interface GameAPI {
   getEndReason(): GameEndReason | null;
   startGame(): { success: boolean; error?: GameError };
   getLegalMoves(color: Color): Move[];
+  isCaptureForced(): boolean;
   checkForCheck(color: Color): { isInCheck: boolean; checkers: Piece[] };
   checkForCheckmate(color: Color): { isInCheckmate: boolean; checkers: Piece[] };
   isStalemate(color: Color): boolean;
@@ -233,6 +234,14 @@ export class Game implements GameAPI {
       this.cachedCaptureForced[turn] = captureForced;
     }
     return legalMoves;
+  }
+
+  isCaptureForced(): boolean {
+    const turn = this.turnCount;
+    const cached = this.cachedCaptureForced[turn];
+    if (cached) return cached;
+    const { captureForced } = this.getLegalMovesNoCache(this.currentPlayer);
+    return captureForced;
   }
 
   getLegalMovesNoCache(color: Color): { legalMoves: Move[]; captureForced: boolean } {
