@@ -1,8 +1,8 @@
-type Props = {
-  onExit: () => void
-}
+import { useNavigate } from 'react-router-dom'
 
-export function TutorialPage({ onExit }: Props) {
+export function TutorialPage() {
+  const navigate = useNavigate()
+
   return (
     <div className="w-full max-w-5xl space-y-6">
       <div className="grid md:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)] gap-6">
@@ -32,7 +32,7 @@ export function TutorialPage({ onExit }: Props) {
             </button>
             <button
               className="px-4 py-2 rounded-md border border-border text-sm hover:bg-accent hover:text-accent-foreground transition"
-              onClick={onExit}
+              onClick={() => navigate('/')}
             >
               메인 메뉴로
             </button>

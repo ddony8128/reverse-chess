@@ -1,12 +1,10 @@
 import { useState } from 'react'
-
-type Props = {
-  onExit: () => void
-}
+import { useNavigate } from 'react-router-dom'
 
 type Difficulty = 'easy' | 'hard' | null
 
-export function SinglePlayPage({ onExit }: Props) {
+export function SinglePlayPage() {
+  const navigate = useNavigate()
   const [difficulty, setDifficulty] = useState<Difficulty>(null)
   const [open, setOpen] = useState(false)
 
@@ -86,7 +84,7 @@ export function SinglePlayPage({ onExit }: Props) {
             </button>
             <button
               className="px-4 py-2 rounded-md border border-border text-sm hover:bg-accent hover:text-accent-foreground transition"
-              onClick={onExit}
+              onClick={() => navigate('/')}
             >
               메인 메뉴로
             </button>

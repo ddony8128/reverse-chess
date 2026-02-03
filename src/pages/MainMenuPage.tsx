@@ -1,10 +1,8 @@
-import type { Screen } from '../App'
+import { useNavigate } from 'react-router-dom'
 
-type Props = {
-  onSelect: (screen: Screen) => void
-}
+export function MainMenuPage() {
+  const navigate = useNavigate()
 
-export function MainMenuPage({ onSelect }: Props) {
   return (
     <div className="w-full max-w-md space-y-8 text-center">
       <p className="text-muted-foreground">
@@ -14,21 +12,27 @@ export function MainMenuPage({ onSelect }: Props) {
       <div className="space-y-4">
         <button
           className="w-full px-4 py-3 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition"
-          onClick={() => onSelect('tutorial')}
+          onClick={() => navigate('/tutorial')}
         >
           튜토리얼
         </button>
         <button
           className="w-full px-4 py-3 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition"
-          onClick={() => onSelect('single')}
+          onClick={() => navigate('/single')}
         >
           혼자 하기
         </button>
         <button
           className="w-full px-4 py-3 rounded-lg border border-border hover:bg-accent hover:text-accent-foreground transition"
-          onClick={() => onSelect('two')}
+          onClick={() => navigate('/two')}
         >
           둘이 하기
+        </button>
+        <button
+          className="w-full px-4 py-3 rounded-lg border border-border hover:bg-accent hover:text-accent-foreground transition"
+          onClick={() => navigate('/test')}
+        >
+          테스트
         </button>
       </div>
     </div>

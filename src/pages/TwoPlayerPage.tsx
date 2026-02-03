@@ -1,8 +1,7 @@
-type Props = {
-  onExit: () => void
-}
+import { useNavigate } from 'react-router-dom'
 
-export function TwoPlayerPage({ onExit }: Props) {
+export function TwoPlayerPage() {
+  const navigate = useNavigate()
   return (
     <div className="w-full max-w-5xl space-y-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -30,7 +29,7 @@ export function TwoPlayerPage({ onExit }: Props) {
 
           <button
             className="mt-4 px-4 py-2 rounded-md border border-border text-sm hover:bg-accent hover:text-accent-foreground transition"
-            onClick={onExit}
+            onClick={() => navigate('/')}
           >
             메인 메뉴로
           </button>
