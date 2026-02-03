@@ -13,7 +13,7 @@ export function MainMenuPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center pt-60 pb-24 px-8"
+    <div className="min-h-screen flex flex-col items-center pt-36 pb-24 px-8"
     style={{ background: 'var(--gradient-dark)' }}>
       <div className="absolute top-15 left-15 text-6xl opacity-40 text-primary">♔</div>
       <div className="absolute top-15 right-15 text-6xl opacity-40 text-primary">♛</div>
@@ -21,9 +21,16 @@ export function MainMenuPage() {
       <div className="absolute bottom-15 right-15 text-6xl opacity-40 text-primary">♚</div>
       
 
-      <div className="text-center mb-16">
-        <h1 className="game-title mb-4">리버스 체스</h1>
-        <p className="text-muted-foreground text-lg">져야 이기는 체스</p>
+      <div className="text-center mb-16 flex flex-col items-center gap-4">
+        <img
+          src="/icon.png"
+          alt="Reverse Chess Icon"
+          className="w-20 h-20 md:w-24 md:h-24 rounded-full shadow-lg"
+        />
+        <div>
+          <h1 className="game-title mb-4">리버스 체스</h1>
+          <p className="text-muted-foreground text-lg">져야 이기는 체스</p>
+        </div>
       </div>
 
       <div className="flex flex-col gap-4 w-full max-w-xs">
