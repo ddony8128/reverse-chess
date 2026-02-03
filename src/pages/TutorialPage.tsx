@@ -39,7 +39,7 @@ export function TutorialPage() {
     setGame(newGame);
     setSelectedLocation(null);
     setValidMoves([]);
-    setLegalMoves(newGame.getLegalMovesNoCache(Color.Black));
+    setLegalMoves(newGame.getLegalMovesNoCache(Color.Black).legalMoves);
     setCurrentPlayer(Color.Black);
     setPromotionActive(false);
     setPromotionLocation(null);
@@ -93,7 +93,7 @@ export function TutorialPage() {
       setSelectedLocation(null);
       setValidMoves([]);
       setCurrentPlayer(nextPlayer);
-      setLegalMoves(game.getLegalMovesNoCache(nextPlayer));
+      setLegalMoves(game.getLegalMovesNoCache(nextPlayer).legalMoves);
 
       if (step.expected && step.expected.check(board)) {
         setStepCompleted(true);
@@ -135,7 +135,7 @@ export function TutorialPage() {
 
     const nextPlayer = reverseColor(currentPlayer);
     setCurrentPlayer(nextPlayer);
-    setLegalMoves(game.getLegalMovesNoCache(nextPlayer));
+    setLegalMoves(game.getLegalMovesNoCache(nextPlayer).legalMoves);
 
     if (step.expected && step.expected.check(board)) {
       setStepCompleted(true);
@@ -164,7 +164,7 @@ export function TutorialPage() {
     setGame(newGame);
     setSelectedLocation(null);
     setValidMoves([]);
-    setLegalMoves(newGame.getLegalMovesNoCache(Color.Black));
+    setLegalMoves(newGame.getLegalMovesNoCache(Color.Black).legalMoves);
 
     if (step.expected) {
       setStepCompleted(step.expected.check(clonedBoard));

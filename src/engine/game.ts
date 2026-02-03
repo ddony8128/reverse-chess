@@ -46,6 +46,7 @@ export class Game implements GameAPI {
   private turnCount: number;
   private endReason: GameEndReason | null;
   private cachedLegalMoves: Partial<Record<number, Move[]>>;
+  private cachedCaptureForced: Partial<Record<number, boolean>>;
   private cachedCheck: Partial<Record<number, { isInCheck: boolean; checkers: Piece[] }>>;
 
   constructor(board?: Board, currentPlayer?: Color) {
@@ -57,6 +58,7 @@ export class Game implements GameAPI {
     this.turnCount = 0;
     this.history = [];
     this.cachedLegalMoves = {};
+    this.cachedCaptureForced = {};
     this.cachedCheck = {};
   }
 
@@ -79,7 +81,7 @@ export class Game implements GameAPI {
     return [move];
   }
 
-  private generateCandidateMoves(color: Color): Move[] {
+  private generateCandidateMoves(color: Color): { captureMoves: Move[], quietMoves: Move[] } {
     const ownPieces = this.board.getAllPieces(color);
 
     const captureMoves: Move[] = [];
@@ -100,11 +102,7 @@ export class Game implements GameAPI {
       }
     }
 
-    const CandidateMoves = captureMoves.length > 0 ? captureMoves : quietMoves;
-
-    const promotedMoves = CandidateMoves.flatMap((move) => this.applyPromotionToMove(move));
-
-    return promotedMoves;
+    return { captureMoves, quietMoves };
   }
 
   getBoard(): Board {
@@ -225,17 +223,28 @@ export class Game implements GameAPI {
 
     if (isCurrentPlayer && cached) return cached;
 
-    const legalMoves = this.getLegalMovesNoCache(color);
+    const { legalMoves, captureForced } = this.getLegalMovesNoCache(color);
 
     if (isCurrentPlayer) {
       this.cachedLegalMoves[turn] = legalMoves;
+      this.cachedCaptureForced[turn] = captureForced;
     }
     return legalMoves;
   }
 
-  getLegalMovesNoCache(color: Color): Move[] {
-    const candidateMoves = this.generateCandidateMoves(color);
-    return candidateMoves.filter((move) => !this.checkForNextCheck(move, color));
+  getLegalMovesNoCache(color: Color): { legalMoves: Move[], captureForced: boolean } {
+    const { captureMoves, quietMoves } = this.generateCandidateMoves(color);
+
+    const promotedCaptureMoves = captureMoves.flatMap((move) => this.applyPromotionToMove(move));
+    const promotedQuietMoves = quietMoves.flatMap((move) => this.applyPromotionToMove(move));
+
+    const filteredCaptureMoves = promotedCaptureMoves.filter((move) => !this.checkForNextCheck(move, color));
+    const filteredQuietMoves = promotedQuietMoves.filter((move) => !this.checkForNextCheck(move, color));
+
+    if (filteredCaptureMoves.length > 0) {
+      return { legalMoves: filteredCaptureMoves, captureForced: true };
+    }
+    return { legalMoves: filteredQuietMoves, captureForced: false };
   }
 
   checkForCheck(color: Color): { isInCheck: boolean; checkers: Piece[] } {
