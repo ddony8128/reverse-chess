@@ -79,7 +79,6 @@ export function TutorialPage() {
         setPromotionActive(true);
         setPromotionLocation(location);
         setPromotionOptionsState(promotionTypes);
-        setSelectedLocation(null);
         setValidMoves([]);
         return;
       }
