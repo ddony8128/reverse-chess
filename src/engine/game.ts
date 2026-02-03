@@ -286,6 +286,10 @@ export class Game implements GameAPI {
   }
 
   isLoneIsland(color: Color): boolean {
+    const { isInCheck } = this.checkForCheck(color);
+    if (isInCheck) {
+      return false;
+    }
     const legalMoves = this.getLegalMoves(color);
     if (legalMoves.length === 0) {
       return false;

@@ -179,7 +179,8 @@ export const createTutorialSteps = (): TutorialStep[] => {
     },
     {
       title: '추가 규칙 : 외딴섬',
-      description: '내가 움직일 수 있는 말이 킹만 남아도 승리합니다. 흑 폰을 앞으로 이동해보세요.',
+      description:
+        '체크 상태가 아니며, 내가 움직일 수 있는 말이 킹뿐이라면 승리합니다. 흑 폰을 앞으로 이동해보세요.',
       board: loneIslandBoard,
       expected: {
         check: (board: Board) => {
