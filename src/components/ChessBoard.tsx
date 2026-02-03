@@ -1,14 +1,7 @@
 import { Board } from '@/engine/board';
 import { PIECE_SYMBOLS } from '@/lib/pieceSymbols';
 import { cn } from '@/lib/utils';
-import {
-  File,
-  Rank,
-  fileToIndex,
-  rankToIndex,
-  type Location,
-  PieceType,
-} from '@/engine/types';
+import { File, Rank, fileToIndex, rankToIndex, type Location, PieceType } from '@/engine/types';
 
 interface ChessBoardProps {
   board: Board;
@@ -59,26 +52,26 @@ export function ChessBoard({
   return (
     <div className="relative">
       {/* Board border */}
-      <div className="absolute -inset-3 bg-linear-to-br from-amber-900/80 to-amber-950/80 rounded-lg shadow-2xl" />
+      <div className="absolute -inset-3 rounded-lg bg-linear-to-br from-amber-900/80 to-amber-950/80 shadow-2xl" />
 
       {/* Coordinates */}
-      <div className="absolute -left-6 top-0 bottom-0 flex flex-col justify-around text-muted-foreground text-sm font-medium">
+      <div className="text-muted-foreground absolute top-0 bottom-0 -left-6 flex flex-col justify-around text-sm font-medium">
         {displayRanks.map((rank) => (
-          <span key={rank} className="h-12 flex items-center justify-center">
+          <span key={rank} className="flex h-12 items-center justify-center">
             {rank}
           </span>
         ))}
       </div>
-      <div className="absolute -bottom-6 left-0 right-0 flex justify-around text-muted-foreground text-sm font-medium">
+      <div className="text-muted-foreground absolute right-0 -bottom-6 left-0 flex justify-around text-sm font-medium">
         {displayFiles.map((file) => (
-          <span key={file} className="w-12 flex items-center justify-center">
+          <span key={file} className="flex w-12 items-center justify-center">
             {file}
           </span>
         ))}
       </div>
 
       {/* Chess board */}
-      <div className="relative grid grid-cols-8 gap-0 rounded-sm overflow-visible shadow-inner">
+      <div className="relative grid grid-cols-8 gap-0 overflow-visible rounded-sm shadow-inner">
         {displayRanks.map((rank) =>
           displayFiles.map((file) => {
             const location: Location = { file, rank };
@@ -107,21 +100,21 @@ export function ChessBoard({
                 onClick={() => handleClick(location)}
                 disabled={disabled}
                 className={cn(
-                  'w-12 h-12 md:w-14 md:h-14 lg:w-16 lg:h-16 flex items-center justify-center',
-                  'transition-all duration-150 relative z-10',
+                  'flex h-12 w-12 items-center justify-center md:h-14 md:w-14 lg:h-16 lg:w-16',
+                  'relative z-10 transition-all duration-150',
                   isLightSquare ? 'chess-square-light' : 'chess-square-dark',
                   selected && 'chess-square-selected',
                   validMove && !capture && 'chess-square-moveable',
                   capture && 'chess-square-moveable chess-square-capture',
                   isPromotionSquare && 'z-30',
-                  !disabled && 'hover:brightness-110 cursor-pointer',
+                  !disabled && 'cursor-pointer hover:brightness-110',
                   disabled && 'cursor-default',
                 )}
               >
                 {piece && (
                   <span
                     className={cn(
-                      'text-4xl md:text-5xl lg:text-6xl select-none transition-transform',
+                      'text-4xl transition-transform select-none md:text-5xl lg:text-6xl',
                       piece.color === 'white'
                         ? 'text-[hsl(var(--chess-white-piece))] drop-shadow-[0_2px_2px_rgba(0,0,0,0.5)]'
                         : 'text-[hsl(var(--chess-black-piece))] drop-shadow-[0_1px_1px_rgba(255,255,255,0.3)]',
@@ -133,13 +126,13 @@ export function ChessBoard({
                 )}
 
                 {isPromotionSquare && movingPiece && promotionOptions && (
-                  <div className="absolute -top-10 left-1/2 -translate-x-1/2 z-20 bg-black/70 rounded-md px-1 py-1 flex flex-row items-center justify-center space-x-1 shadow-lg">
+                  <div className="absolute -top-10 left-1/2 z-20 flex -translate-x-1/2 flex-row items-center justify-center space-x-1 rounded-md bg-black/70 px-1 py-1 shadow-lg">
                     {promotionOptions.map((promotion) => (
                       <div
                         key={promotion}
                         role="button"
                         tabIndex={0}
-                        className="w-12 h-12 rounded-full bg-background/95 flex items-center justify-center text-lg shadow cursor-pointer"
+                        className="bg-background/95 flex h-12 w-12 cursor-pointer items-center justify-center rounded-full text-lg shadow"
                         onClick={(e) => {
                           e.stopPropagation();
                           onPromotion(location, promotion);
@@ -157,4 +150,4 @@ export function ChessBoard({
       </div>
     </div>
   );
-};
+}

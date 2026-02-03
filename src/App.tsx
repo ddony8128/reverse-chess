@@ -1,8 +1,8 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
-import { MainMenuPage } from './pages/MainMenuPage'
-import { TutorialPage } from './pages/TutorialPage'
-import { SinglePlayPage } from './pages/SinglePlayPage'
-import { TwoPlayerPage } from './pages/TwoPlayerPage'
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { MainMenuPage } from './pages/MainMenuPage';
+import { TutorialPage } from './pages/TutorialPage';
+import { SinglePlayPage } from './pages/SinglePlayPage';
+import { TwoPlayerPage } from './pages/TwoPlayerPage';
 
 function App() {
   return (
@@ -17,6 +17,6 @@ function App() {
         </Routes>
       </main>
     </div>
-  )
+  );
 }
-export default App
+export default App;

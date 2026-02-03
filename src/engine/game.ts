@@ -69,7 +69,8 @@ export class Game implements GameAPI {
 
   private applyPromotionToMove(move: Move): Move[] {
     const isPawn: boolean = move.piece?.type === PieceType.Pawn;
-    const isPromotionRank: boolean = move.piece?.color === Color.White ? move.to.rank === Rank.Rank8 : move.to.rank === Rank.Rank1;
+    const isPromotionRank: boolean =
+      move.piece?.color === Color.White ? move.to.rank === Rank.Rank8 : move.to.rank === Rank.Rank1;
     if (isPawn && isPromotionRank) {
       return [
         { ...move, promotion: PieceType.Queen },
@@ -81,7 +82,7 @@ export class Game implements GameAPI {
     return [move];
   }
 
-  private generateCandidateMoves(color: Color): { captureMoves: Move[], quietMoves: Move[] } {
+  private generateCandidateMoves(color: Color): { captureMoves: Move[]; quietMoves: Move[] } {
     const ownPieces = this.board.getAllPieces(color);
 
     const captureMoves: Move[] = [];
@@ -165,7 +166,10 @@ export class Game implements GameAPI {
     const toKey = locationToKey(to);
     const legalMoves = this.getLegalMoves(color);
     const move = legalMoves.find(
-      (m) => locationToKey(m.from) === fromKey && locationToKey(m.to) === toKey && m.promotion === realPromotion,
+      (m) =>
+        locationToKey(m.from) === fromKey &&
+        locationToKey(m.to) === toKey &&
+        m.promotion === realPromotion,
     );
     if (!move) {
       error = GameError.InvalidMove;
@@ -176,7 +180,6 @@ export class Game implements GameAPI {
     this.applyMove(move);
     this.history.push(move);
     this.switchPlayer();
-
 
     const isOnlyKingLeft = this.isOnlyKingLeft(opponent);
     if (isOnlyKingLeft) {
@@ -232,14 +235,18 @@ export class Game implements GameAPI {
     return legalMoves;
   }
 
-  getLegalMovesNoCache(color: Color): { legalMoves: Move[], captureForced: boolean } {
+  getLegalMovesNoCache(color: Color): { legalMoves: Move[]; captureForced: boolean } {
     const { captureMoves, quietMoves } = this.generateCandidateMoves(color);
 
     const promotedCaptureMoves = captureMoves.flatMap((move) => this.applyPromotionToMove(move));
     const promotedQuietMoves = quietMoves.flatMap((move) => this.applyPromotionToMove(move));
 
-    const filteredCaptureMoves = promotedCaptureMoves.filter((move) => !this.checkForNextCheck(move, color));
-    const filteredQuietMoves = promotedQuietMoves.filter((move) => !this.checkForNextCheck(move, color));
+    const filteredCaptureMoves = promotedCaptureMoves.filter(
+      (move) => !this.checkForNextCheck(move, color),
+    );
+    const filteredQuietMoves = promotedQuietMoves.filter(
+      (move) => !this.checkForNextCheck(move, color),
+    );
 
     if (filteredCaptureMoves.length > 0) {
       return { legalMoves: filteredCaptureMoves, captureForced: true };
@@ -304,7 +311,6 @@ export class Game implements GameAPI {
     }
 
     const captured = this.board.getPieceByLocation(to);
-
 
     if (promotion && promotion === PieceType.King) {
       return null;

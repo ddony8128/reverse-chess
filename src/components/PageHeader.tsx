@@ -4,10 +4,10 @@ export function PageHeader() {
   const navigate = useNavigate();
 
   return (
-    <header className="border-b px-6 py-4 flex items-center justify-between">
+    <header className="flex items-center justify-between border-b px-6 py-4">
       <h1 className="text-xl font-bold tracking-tight">리버스 체스</h1>
       <button
-        className="text-sm text-muted-foreground hover:text-foreground transition"
+        className="text-muted-foreground hover:text-foreground text-sm transition"
         onClick={() => navigate('/')}
       >
         메인 메뉴로
@@ -15,4 +15,3 @@ export function PageHeader() {
     </header>
   );
 }
-

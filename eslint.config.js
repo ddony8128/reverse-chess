@@ -1,12 +1,12 @@
-import js from '@eslint/js'
-import globals from 'globals'
-import reactHooks from 'eslint-plugin-react-hooks'
-import reactRefresh from 'eslint-plugin-react-refresh'
-import react from 'eslint-plugin-react'
-import prettierPlugin from 'eslint-plugin-prettier'
-import tanstackQuery from '@tanstack/eslint-plugin-query'
-import tseslint from 'typescript-eslint'
-import { defineConfig, globalIgnores } from 'eslint/config'
+import js from '@eslint/js';
+import globals from 'globals';
+import reactHooks from 'eslint-plugin-react-hooks';
+import reactRefresh from 'eslint-plugin-react-refresh';
+import react from 'eslint-plugin-react';
+import prettierPlugin from 'eslint-plugin-prettier';
+import tanstackQuery from '@tanstack/eslint-plugin-query';
+import tseslint from 'typescript-eslint';
+import { defineConfig, globalIgnores } from 'eslint/config';
 
 export default defineConfig([
   globalIgnores(['dist']),
@@ -28,10 +28,7 @@ export default defineConfig([
       '@tanstack/query': tanstackQuery,
     },
     rules: {
-      'react-refresh/only-export-components': [
-        'warn',
-        { allowConstantExport: true },
-      ],
+      'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
       'prettier/prettier': [
         'error',
         {
@@ -57,4 +54,4 @@ export default defineConfig([
       '@typescript-eslint/no-floating-promises': 'warn',
     },
   },
-])
+]);

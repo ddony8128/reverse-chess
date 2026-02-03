@@ -1,9 +1,9 @@
 @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap');
-@import "tailwindcss";
-@import "tw-animate-css";
+@import 'tailwindcss';
+@import 'tw-animate-css';
 
-@config "../tailwind.config.ts";
-@plugin "tailwindcss-animate";
+@config '../tailwind.config.ts';
+@plugin 'tailwindcss-animate';
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -72,7 +72,9 @@
     font-family: 'Noto Sans KR', sans-serif;
   }
 
-  h1, h2, h3 {
+  h1,
+  h2,
+  h3 {
     font-family: 'Cinzel', serif;
   }
 }
@@ -114,10 +116,10 @@
   }
 
   .btn-menu {
-    @apply relative overflow-hidden px-12 py-8 text-2xl font-semibold rounded-lg transition-all duration-300;
-    @apply bg-secondary text-foreground border border-border;
+    @apply relative overflow-hidden rounded-lg px-12 py-8 text-2xl font-semibold transition-all duration-300;
+    @apply bg-secondary text-foreground border-border border;
     @apply hover:bg-primary hover:text-primary-foreground hover:border-primary;
-    @apply hover:shadow-lg hover:shadow-primary/20;
+    @apply hover:shadow-primary/20 hover:shadow-lg;
     @apply active:scale-95;
   }
 
@@ -133,7 +135,7 @@
 
   .game-title {
     font-family: 'Cinzel', serif;
-    @apply text-5xl md:text-7xl font-bold tracking-wider;
+    @apply text-5xl font-bold tracking-wider md:text-7xl;
     background: linear-gradient(135deg, hsl(38 70% 60%), hsl(32 80% 50%), hsl(38 70% 60%));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -142,11 +144,11 @@
   }
 
   .modal-overlay {
-    @apply fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50;
+    @apply fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm;
   }
 
   .modal-content {
-    @apply bg-card border border-border rounded-xl p-8 text-center shadow-2xl;
+    @apply bg-card border-border rounded-xl border p-8 text-center shadow-2xl;
     @apply animate-in fade-in-0 zoom-in-95 duration-200;
   }
 }
@@ -157,8 +159,13 @@
   }
 
   @keyframes float {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-10px); }
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-10px);
+    }
   }
 
   .animate-glow {
@@ -166,7 +173,11 @@
   }
 
   @keyframes glow {
-    from { filter: drop-shadow(0 0 5px hsl(38 70% 50% / 0.5)); }
-    to { filter: drop-shadow(0 0 20px hsl(38 70% 50% / 0.8)); }
+    from {
+      filter: drop-shadow(0 0 5px hsl(38 70% 50% / 0.5));
+    }
+    to {
+      filter: drop-shadow(0 0 20px hsl(38 70% 50% / 0.8));
+    }
   }
 }

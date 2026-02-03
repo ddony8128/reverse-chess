@@ -11,7 +11,6 @@ import { PageHeader } from '@/components/PageHeader';
 import { Game } from '@/engine/game';
 import { createTutorialSteps } from '@/assets/tutorialStep';
 
-
 export function TutorialPage() {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
@@ -30,7 +29,7 @@ export function TutorialPage() {
 
   const steps = useMemo(() => createTutorialSteps(), []);
   const step = steps[currentStep];
-  
+
   useEffect(() => {
     const clonedBoard = cloneBoard(step.board);
     const newGame = new Game(clonedBoard, Color.Black);
@@ -70,11 +69,7 @@ export function TutorialPage() {
 
       const promotionMoves = candidateMoves.filter((m) => m.promotion);
       const promotionTypes = Array.from(
-        new Set(
-          promotionMoves
-            .map((m) => m.promotion)
-            .filter((p): p is PieceType => !!p),
-        ),
+        new Set(promotionMoves.map((m) => m.promotion).filter((p): p is PieceType => !!p)),
       );
       const isPromotionMove = promotionTypes.length > 0;
 
@@ -148,7 +143,7 @@ export function TutorialPage() {
     } else {
       navigate('/');
     }
-  }
+  };
 
   const handlePrev = () => {
     if (currentStep > 0) {
@@ -181,24 +176,19 @@ export function TutorialPage() {
   const canProceed = stepCompleted;
 
   return (
-    <div
-      className="min-h-screen flex flex-col"
-      style={{ background: 'var(--gradient-dark)' }}
-    >
+    <div className="flex min-h-screen flex-col" style={{ background: 'var(--gradient-dark)' }}>
       <PageHeader />
-      <div className="flex-1 flex flex-col items-center justify-center p-4 md:p-8">
+      <div className="flex flex-1 flex-col items-center justify-center p-4 md:p-8">
         {/* Header */}
         <div className="mb-6 text-center">
-          <h2 className="text-2xl md:text-3xl font-bold text-primary mb-2">
-            {step.title}
-          </h2>
+          <h2 className="text-primary mb-2 text-2xl font-bold md:text-3xl">{step.title}</h2>
           <div className="text-muted-foreground text-sm">
             {currentStep + 1} / {steps.length}
           </div>
         </div>
 
         {/* Chess Board */}
-        <div className="mb-8 relative">
+        <div className="relative mb-8">
           <ChessBoard
             board={board ?? createEmptyBoard()}
             selectedLocation={selectedLocation}
@@ -211,8 +201,8 @@ export function TutorialPage() {
             disabled={false}
           />
           {step.expected && stepCompleted && (
-            <div className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none">
-              <div className="px-6 py-3 rounded-lg bg-black/80 text-xl md:text-2xl font-semibold text-primary shadow-2xl">
+            <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center">
+              <div className="text-primary rounded-lg bg-black/80 px-6 py-3 text-xl font-semibold shadow-2xl md:text-2xl">
                 {step.expected.message}
               </div>
             </div>
@@ -220,8 +210,8 @@ export function TutorialPage() {
         </div>
 
         {/* Description */}
-        <div className="max-w-md text-left mb-8 px-4">
-          <div className="text-foreground text-base leading-relaxed text-left min-h-22">
+        <div className="mb-8 max-w-md px-4 text-left">
+          <div className="text-foreground min-h-22 text-left text-base leading-relaxed">
             {step.description}
           </div>
         </div>
@@ -234,7 +224,7 @@ export function TutorialPage() {
             disabled={currentStep === 0}
             className="flex items-center gap-2"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="h-4 w-4" />
             이전
           </Button>
 
@@ -244,28 +234,26 @@ export function TutorialPage() {
             className="btn-menu flex items-center gap-2"
           >
             {isLastStep ? '완료' : '다음'}
-            {!isLastStep && <ArrowRight className="w-4 h-4" />}
+            {!isLastStep && <ArrowRight className="h-4 w-4" />}
           </Button>
           <Button
             variant="ghost"
             onClick={handleRestart}
-            className="btn-menu flex items-center gap-2 text-muted-foreground hover:text-foreground"
+            className="btn-menu text-muted-foreground hover:text-foreground flex items-center gap-2"
           >
-            <RotateCcw className="w-4 h-4" />
+            <RotateCcw className="h-4 w-4" />
             다시하기
           </Button>
           <Button
             variant="ghost"
             onClick={handleNextStep}
-            className="btn-menu flex items-center gap-2 text-muted-foreground hover:text-foreground"
+            className="btn-menu text-muted-foreground hover:text-foreground flex items-center gap-2"
           >
-            <SkipForward className="w-4 h-4" />
+            <SkipForward className="h-4 w-4" />
             건너뛰기
           </Button>
         </div>
       </div>
     </div>
   );
-
 }
-

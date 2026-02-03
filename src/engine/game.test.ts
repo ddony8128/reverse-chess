@@ -1,15 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { Game } from './game';
 import { Board } from './board';
-import {
-  Color,
-  File,
-  Rank,
-  PieceType,
-  type Location,
-  type Piece,
-  GameEndReason,
-} from './types';
+import { Color, File, Rank, PieceType, type Location, type Piece, GameEndReason } from './types';
 
 const ALL_FILES = Object.values(File) as File[];
 const ALL_RANKS = Object.values(Rank) as Rank[];
@@ -152,4 +144,3 @@ describe('Game end conditions', () => {
     expect(result.endReason).toBe(GameEndReason.OnlyKingLeft);
   });
 });
-
