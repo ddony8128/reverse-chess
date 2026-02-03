@@ -14,7 +14,7 @@ function App() {
           <Route path="/single/:difficulty" element={<SinglePlayPage />} />
           <Route path="/two" element={<TwoPlayerPage />} />
           <Route path="*" element={<Navigate to="/" />} />
-      </Routes>
+        </Routes>
       </main>
     </div>
   );
