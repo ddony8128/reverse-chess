@@ -3,6 +3,7 @@ import { MainMenuPage } from './pages/MainMenuPage';
 import { TutorialPage } from './pages/TutorialPage';
 import { SinglePlayPage } from './pages/SinglePlayPage';
 import { TwoPlayerPage } from './pages/TwoPlayerPage';
+import { GameResultModal } from './components/GameResultModal';
 
 function App() {
   return (
@@ -14,6 +15,7 @@ function App() {
           <Route path="/single/:difficulty" element={<SinglePlayPage />} />
           <Route path="/two" element={<TwoPlayerPage />} />
           <Route path="*" element={<Navigate to="/" />} />
+          <Route path="/game-result" element={<GameResultModal winner="black" isTwoPlayer={true} onConfirm={() => {}} />} />
         </Routes>
       </main>
     </div>
