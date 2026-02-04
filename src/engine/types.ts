@@ -137,4 +137,6 @@ export const difficultyLevel = {
   Hard: 'Hard',
 } as const;
 
-export type difficultyLevel = (typeof difficultyLevel)[keyof typeof difficultyLevel];
+export type DifficultyLevel = (typeof difficultyLevel)[keyof typeof difficultyLevel];
+
+export type EvaluationScore = number;
