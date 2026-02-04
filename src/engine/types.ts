@@ -131,3 +131,10 @@ export const GameEndReason = {
 } as const;
 
 export type GameEndReason = (typeof GameEndReason)[keyof typeof GameEndReason];
+
+export const difficultyLevel = {
+  Easy: 'Easy',
+  Hard: 'Hard',
+} as const;
+
+export type difficultyLevel = (typeof difficultyLevel)[keyof typeof difficultyLevel];
