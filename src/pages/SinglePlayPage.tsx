@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
 import { Board } from '@/engine/board';
 import { Game } from '@/engine/game';
@@ -9,6 +10,8 @@ import {
   PieceType,
   GameEndReason,
   locationToKey,
+  difficultyLevel,
+  type DifficultyLevel,
 } from '@/engine/types';
 import { cloneBoard } from '@/engine/boardUtils';
 import { RotateCcw } from 'lucide-react';
@@ -17,14 +20,24 @@ import TurnIndicator from '@/components/TurnIndicator';
 import { ChessBoard } from '@/components/ChessBoard';
 import { GameResultModal } from '@/components/GameResultModal';
 import { CheckIndicator } from '@/components/CheckIndicator';
+import { createAIPlayer, type AIPlayerAPI } from '@/engine/aiPlayer';
 
 export function SinglePlayPage() {
+  const { difficulty } = useParams<{ difficulty: string }>();
+
+  const resolvedDifficulty: DifficultyLevel =
+    difficulty === 'hard' ? difficultyLevel.Hard : difficultyLevel.Easy;
+
   const [board, setBoard] = useState<Board | null>(null);
   const [game, setGame] = useState<Game | null>(null);
   const [legalMoves, setLegalMoves] = useState<Move[]>([]);
   const [validMoves, setValidMoves] = useState<Location[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
   const [currentPlayer, setCurrentPlayer] = useState<Color>(Color.Black);
+  const [humanColor, setHumanColor] = useState<Color>(Color.White);
+  const [aiColor, setAiColor] = useState<Color>(Color.Black);
+  const [boardFlipped, setBoardFlipped] = useState(false);
+  const [aiPlayer, setAiPlayer] = useState<AIPlayerAPI | null>(null);
   const [promotionActive, setPromotionActive] = useState(false);
   const [promotionLocation, setPromotionLocation] = useState<Location | null>(null);
   const [promotionOptionsState, setPromotionOptionsState] = useState<PieceType[] | undefined>(
@@ -47,11 +60,22 @@ export function SinglePlayPage() {
     setGame(newGame);
     setBoard(newGame.getBoard());
 
+    const humanPlaysBlack = Math.random() < 0.5;
+    const nextHumanColor = humanPlaysBlack ? Color.Black : Color.White;
+    const nextAiColor = humanPlaysBlack ? Color.White : Color.Black;
+    setHumanColor(nextHumanColor);
+    setAiColor(nextAiColor);
+    setBoardFlipped(!humanPlaysBlack);
+
+    const ai = createAIPlayer(resolvedDifficulty);
+    setAiPlayer(ai);
+
     setSelectedLocation(null);
     setValidMoves([]);
-    setLegalMoves(newGame.getLegalMoves(Color.Black));
+    const firstPlayer = newGame.getCurrentPlayer();
+    setLegalMoves(newGame.getLegalMoves(firstPlayer));
     setCaptureForced(newGame.isCaptureForced());
-    setCurrentPlayer(Color.Black);
+    setCurrentPlayer(firstPlayer);
     setPromotionActive(false);
     setPromotionLocation(null);
     setPromotionOptionsState(undefined);
@@ -62,6 +86,23 @@ export function SinglePlayPage() {
     setIsInCheck(false);
     setCaptureForced(false);
   };
+
+  const isPlayerTurn = currentPlayer === humanColor;
+
+  useEffect(() => {
+    if (!game || !board || !aiPlayer) return;
+    if (isEnded) return;
+    if (currentPlayer !== aiColor) return;
+
+    const timer = window.setTimeout(() => {
+      const move = aiPlayer.getNextMove(board, aiColor);
+      handleTurnProgress(aiColor, move.from, move.to, move.promotion ?? undefined);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [game, board, aiPlayer, currentPlayer, aiColor, isEnded]);
 
   const handleTurnProgress = (
     color: Color,
@@ -90,6 +131,7 @@ export function SinglePlayPage() {
 
   const handleSquareClick = (location: Location) => {
     if (promotionActive || isEnded) return;
+    if (!isPlayerTurn) return;
     if (!board || !game) return;
 
     const clickedPiece = board.getPieceByLocation(location);
@@ -200,7 +242,11 @@ export function SinglePlayPage() {
 
           {/* Center slot: 항상 정중앙 */}
           <div className="justify-self-center">
-            <TurnIndicator currentTurn={currentPlayer} isSinglePlay={false} />
+            <TurnIndicator
+              currentTurn={currentPlayer}
+              isSinglePlay={true}
+              isPlayerTurn={isPlayerTurn}
+            />
           </div>
 
           {/* Right slot */}
@@ -228,8 +274,8 @@ export function SinglePlayPage() {
           promotionTarget={promotionActive}
           promotionLocation={promotionLocation}
           promotionOptions={promotionOptionsState}
-          flipped={false}
-          disabled={isEnded}
+          flipped={boardFlipped}
+          disabled={isEnded || !isPlayerTurn}
         />
         </div>
 
@@ -238,7 +284,8 @@ export function SinglePlayPage() {
           <GameResultModal
             winner={winner ?? 'draw'}
             endReason={endReason ?? null}
-            isTwoPlayer={true}
+            singlePlayerColor={humanColor}
+            isTwoPlayer={false}
             onConfirm={() => setEndModalOpen(false)}
           />
         )}
