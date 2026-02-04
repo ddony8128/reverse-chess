@@ -140,3 +140,24 @@ export const difficultyLevel = {
 export type DifficultyLevel = (typeof difficultyLevel)[keyof typeof difficultyLevel];
 
 export type EvaluationScore = number;
+
+
+export type SerializablePiece = {
+  color: Color;
+  type: PieceType;
+  file: File;
+  rank: Rank;
+};
+
+export type ComputeMoveRequest = {
+    type: 'computeMove';
+    difficulty: DifficultyLevel;
+    color: Color;
+    board: SerializablePiece[];
+    warmUp: boolean;
+}
+
+export type ComputeMoveResponse = {
+  type: 'move';
+  move: Move;
+};
