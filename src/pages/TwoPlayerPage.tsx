@@ -49,9 +49,7 @@ export function TwoPlayerPage() {
 
     setSelectedLocation(null);
     setValidMoves([]);
-    const { legalMoves, captureForced } = newGame.getLegalMovesNoCache(Color.Black);
-    setLegalMoves(legalMoves);
-    setCaptureForced(captureForced);
+    setLegalMoves(newGame.getLegalMoves(Color.Black));
     setCurrentPlayer(Color.Black);
     setPromotionActive(false);
     setPromotionLocation(null);

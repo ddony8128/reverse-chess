@@ -1,98 +1,247 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import { PageHeader } from '@/components/PageHeader';
-
-type Difficulty = 'easy' | 'hard' | null;
+import { Board } from '@/engine/board';
+import { Game } from '@/engine/game';
+import {
+  Color,
+  type Move,
+  type Location,
+  PieceType,
+  GameEndReason,
+  locationToKey,
+} from '@/engine/types';
+import { cloneBoard } from '@/engine/boardUtils';
+import { RotateCcw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import TurnIndicator from '@/components/TurnIndicator';
+import { ChessBoard } from '@/components/ChessBoard';
+import { GameResultModal } from '@/components/GameResultModal';
+import { CheckIndicator } from '@/components/CheckIndicator';
 
 export function SinglePlayPage() {
-  const navigate = useNavigate();
-  const [difficulty, setDifficulty] = useState<Difficulty>(null);
-  const [open, setOpen] = useState(false);
+  const [board, setBoard] = useState<Board | null>(null);
+  const [game, setGame] = useState<Game | null>(null);
+  const [legalMoves, setLegalMoves] = useState<Move[]>([]);
+  const [validMoves, setValidMoves] = useState<Location[]>([]);
+  const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
+  const [currentPlayer, setCurrentPlayer] = useState<Color>(Color.Black);
+  const [promotionActive, setPromotionActive] = useState(false);
+  const [promotionLocation, setPromotionLocation] = useState<Location | null>(null);
+  const [promotionOptionsState, setPromotionOptionsState] = useState<PieceType[] | undefined>(
+    undefined,
+  );
+  const [captureForced, setCaptureForced] = useState(false);
+  const [isInCheck, setIsInCheck] = useState(false);
+  const [endReason, setEndReason] = useState<GameEndReason | null>(null);
+  const [winner, setWinner] = useState<Color | null>(null);
+  const [isEnded, setIsEnded] = useState(false);
+  const [endModalOpen, setEndModalOpen] = useState(false);
 
-  const label = difficulty === 'easy' ? '쉬움' : difficulty === 'hard' ? '어려움' : '난이도 선택';
+  useEffect(() => {
+    startNewGame();
+  }, []);
+
+  const startNewGame = () => {
+    const newGame = new Game();
+    newGame.startGame();
+    setGame(newGame);
+    setBoard(newGame.getBoard());
+
+    setSelectedLocation(null);
+    setValidMoves([]);
+    setLegalMoves(newGame.getLegalMoves(Color.Black));
+    setCaptureForced(newGame.isCaptureForced());
+    setCurrentPlayer(Color.Black);
+    setPromotionActive(false);
+    setPromotionLocation(null);
+    setPromotionOptionsState(undefined);
+    setIsEnded(false);
+    setEndReason(null);
+    setWinner(null);
+    setEndModalOpen(false);
+    setIsInCheck(false);
+    setCaptureForced(false);
+  };
+
+  const handleTurnProgress = (
+    color: Color,
+    from: Location,
+    to: Location,
+    promotion?: PieceType,
+  ) => {
+    if (!board || !game) return;
+    const result = game.progressTurn(color, from, to, promotion);
+    if (!result.success) {
+      console.error(result.error);
+      return;
+    }
+    const nextPlayer = game.getCurrentPlayer();
+    setLegalMoves(game.getLegalMoves(nextPlayer));
+    setCurrentPlayer(nextPlayer);
+    setCaptureForced(game.isCaptureForced());
+    setIsInCheck(game.checkForCheck(nextPlayer).isInCheck);
+    if (result.end) {
+      setEndReason(result.endReason ?? null);
+      setWinner(result.winner ?? null);
+      setIsEnded(true);
+      setEndModalOpen(true);
+    }
+  };
+
+  const handleSquareClick = (location: Location) => {
+    if (promotionActive || isEnded) return;
+    if (!board || !game) return;
+
+    const clickedPiece = board.getPieceByLocation(location);
+    const selectedPiece = selectedLocation ? board.getPieceByLocation(selectedLocation) : null;
+
+    if (selectedPiece && validMoves.some((m) => locationToKey(m) === locationToKey(location))) {
+      const fromKey = locationToKey(selectedLocation!);
+      const toKey = locationToKey(location);
+
+      const candidateMoves = legalMoves.filter(
+        (m) => locationToKey(m.from) === fromKey && locationToKey(m.to) === toKey,
+      );
+
+      const promotionMoves = candidateMoves.filter((m) => m.promotion);
+      const promotionTypes = Array.from(
+        new Set(promotionMoves.map((m) => m.promotion).filter((p): p is PieceType => !!p)),
+      );
+      const isPromotionMove = promotionTypes.length > 0;
+
+      if (isPromotionMove) {
+        const virtualBoard = cloneBoard(board);
+        const virtualSelectedPiece = virtualBoard.getPieceByLocation(selectedLocation!);
+        virtualBoard.movePiece(virtualSelectedPiece!, location);
+        setBoard(virtualBoard);
+        setPromotionActive(true);
+        setPromotionLocation(location);
+        setPromotionOptionsState(promotionTypes);
+        setValidMoves([]);
+        return;
+      }
+
+      setSelectedLocation(null);
+      setValidMoves([]);
+      handleTurnProgress(currentPlayer, selectedLocation!, location);
+      return;
+    }
+
+    if (clickedPiece && clickedPiece.color === currentPlayer) {
+      if (selectedLocation && locationToKey(selectedLocation) === locationToKey(location)) {
+        setSelectedLocation(null);
+        setValidMoves([]);
+      } else {
+        const fromKey = locationToKey(location);
+        const pieceMoves = legalMoves.filter((m) => locationToKey(m.from) === fromKey);
+        const destinations: Location[] = pieceMoves.map((m) => m.to);
+
+        setSelectedLocation(location);
+        setValidMoves(destinations);
+      }
+    } else {
+      setSelectedLocation(null);
+      setValidMoves([]);
+    }
+  };
+
+  const handlePromotion = (location: Location, promotion: PieceType) => {
+    if (!board || !game || isEnded) return;
+
+    const piece = board.getPieceByLocation(location);
+    if (!piece) return;
+
+    const currentSelectedLocation = selectedLocation;
+    setBoard(game.getBoard());
+    setPromotionActive(false);
+    setPromotionLocation(null);
+    setPromotionOptionsState(undefined);
+    setSelectedLocation(null);
+    setValidMoves([]);
+
+    handleTurnProgress(currentPlayer, currentSelectedLocation!, location, promotion);
+  };
+
+  const announceText = () => {
+    if (isEnded) {
+      switch (endReason) {
+        case GameEndReason.Checkmate:
+          return `체크메이트!`;
+        case GameEndReason.Stalemate:
+          return `스틸메이트!`;
+        case GameEndReason.LoneIsland:
+          return `외딴 섬!`;
+        case GameEndReason.OnlyKingLeft:
+          return `왕만 남음!`;
+        default:
+          return `게임 종료!`;
+      }
+    } else if (isInCheck) {
+      return `체크!`;
+    } else if (captureForced) {
+      return `강제 캡처!`;
+    }
+    return null;
+  };
+
+  const text = announceText();
 
   return (
     <div className="bg-background text-foreground flex min-h-screen flex-col">
       <PageHeader />
-      <div className="mx-auto w-full max-w-5xl flex-1 space-y-6 p-4 md:p-8">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h2 className="text-xl font-semibold">혼자 하기</h2>
-            <p className="text-muted-foreground text-sm">
-              리버스 체스 엔진과 대전합니다. 난이도를 선택한 뒤 게임을 시작하세요.
-            </p>
+      <div className="flex flex-1 flex-col items-center justify-center p-4 md:p-8">
+      <div className="inline-block">
+        {/* Turn indicator + status + restart (centered over board width) */}
+        <div className="mb-6 grid grid-cols-[1fr_auto_1fr] items-center">
+          {/* Left slot */}
+          <div className="min-w-0 justify-self-start">
+            {text ? <CheckIndicator text={text} /> : null}
           </div>
 
-          <div className="relative">
-            <button
-              type="button"
-              className="border-border bg-background hover:bg-accent hover:text-accent-foreground inline-flex min-w-40 items-center justify-between rounded-md border px-3 py-2 text-sm transition"
-              onClick={() => setOpen((prev) => !prev)}
-            >
-              <span>{label}</span>
-              <span className="text-muted-foreground ml-2 text-xs">▼</span>
-            </button>
-            {open && (
-              <div className="border-border bg-background absolute right-0 mt-1 w-full rounded-md border text-sm shadow-lg">
-                <button
-                  className="hover:bg-accent hover:text-accent-foreground w-full px-3 py-2 text-left"
-                  onClick={() => {
-                    setDifficulty('easy');
-                    setOpen(false);
-                  }}
-                >
-                  쉬움
-                </button>
-                <button
-                  className="hover:bg-accent hover:text-accent-foreground w-full px-3 py-2 text-left"
-                  onClick={() => {
-                    setDifficulty('hard');
-                    setOpen(false);
-                  }}
-                >
-                  어려움
-                </button>
-              </div>
-            )}
+          {/* Center slot: 항상 정중앙 */}
+          <div className="justify-self-center">
+            <TurnIndicator currentTurn={currentPlayer} isSinglePlay={false} />
+          </div>
+
+          {/* Right slot */}
+          <div className="min-w-0 justify-self-end">
+            {isEnded ? (
+              <Button
+                variant="ghost"
+                onClick={startNewGame}
+                className="flex items-center gap-2 text-muted-foreground hover:text-foreground"
+              >
+                <RotateCcw className="h-4 w-4" />
+                한 판 더 하기
+              </Button>
+            ) : null}
           </div>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)]">
-          {/* 체스판 자리 */}
-          <div className="border-border bg-muted flex aspect-square items-center justify-center rounded-lg border">
-            <span className="text-muted-foreground text-sm">
-              싱글 플레이 체스판 (엔진 연동 예정)
-            </span>
-          </div>
-
-          {/* 설명 / 상태 */}
-          <div className="space-y-4">
-            <div className="border-border space-y-2 rounded-lg border p-4 text-sm">
-              <p>
-                <span className="font-medium">선후:</span>{' '}
-                <span className="text-muted-foreground">흑이 선공, 선후는 랜덤으로 결정 예정</span>
-              </p>
-              <p className="text-muted-foreground">
-                플레이어의 진영에 맞춰 체스판 상·하 방향이 자동으로 뒤집히도록 구현할 계획입니다.
-              </p>
-            </div>
-
-            <div className="flex gap-3">
-              <button
-                className="bg-primary text-primary-foreground hover:bg-primary/90 flex-1 rounded-md px-4 py-2 transition disabled:opacity-50"
-                disabled={!difficulty}
-              >
-                {difficulty ? '게임 시작 (엔진 연동 예정)' : '난이도를 먼저 선택하세요'}
-              </button>
-              <button
-                className="border-border hover:bg-accent hover:text-accent-foreground rounded-md border px-4 py-2 text-sm transition"
-                onClick={() => navigate('/')}
-              >
-                메인 메뉴로
-              </button>
-            </div>
-          </div>
+        {/* Chess Board - White at bottom (not flipped) */}
+        <ChessBoard
+          board={board ?? new Board()}
+          selectedLocation={selectedLocation}
+          validMoves={validMoves}
+          onSquareClick={handleSquareClick}
+          onPromotion={handlePromotion}
+          promotionTarget={promotionActive}
+          promotionLocation={promotionLocation}
+          promotionOptions={promotionOptionsState}
+          flipped={false}
+          disabled={isEnded}
+        />
         </div>
+
+        {/* Game result modal */}
+        {endModalOpen && (
+          <GameResultModal
+            winner={winner ?? 'draw'}
+            endReason={endReason ?? null}
+            isTwoPlayer={true}
+            onConfirm={() => setEndModalOpen(false)}
+          />
+        )}
       </div>
     </div>
   );

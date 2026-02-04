@@ -8,10 +8,26 @@ import {
   locationToKey,
   GameEndReason,
   Rank,
+  type LocationKey,
 } from './types';
 import type { Move, Piece, Location } from './types';
+import {
+  computeZobristHash,
+  toggleSideToMove,
+  updateHashForMove,
+  type ZobristHash,
+  type ZobristMoveInfo,
+} from '@/lib/zobristHash';
 
 export interface GameAPI {
+
+  getBoard(): Board;
+  getCurrentPlayer(): Color;
+  getWinner(): Color | null;
+  getBoardHash(): ZobristHash;
+  getEndReason(): GameEndReason | null;
+
+  startGame(): { success: boolean; error?: GameError };
   progressTurn(
     color: Color,
     from: Location,
@@ -24,87 +40,53 @@ export interface GameAPI {
     error?: GameError;
     endReason?: GameEndReason;
   };
-  getBoard(): Board;
-  getCurrentPlayer(): Color;
-  getWinner(): Color | null;
-  getEndReason(): GameEndReason | null;
-  startGame(): { success: boolean; error?: GameError };
+  
   getLegalMoves(color: Color): Move[];
+
   isCaptureForced(): boolean;
   checkForCheck(color: Color): { isInCheck: boolean; checkers: Piece[] };
+  
   checkForCheckmate(color: Color): { isInCheckmate: boolean; checkers: Piece[] };
   isStalemate(color: Color): boolean;
   isLoneIsland(color: Color): boolean;
   isOnlyKingLeft(color: Color): boolean;
+
+  applyMoveForSearch(move: Move): void;
+  rollbackMoveForSearch(): void;
 }
 
 export class Game implements GameAPI {
+
   private board: Board;
+
   private currentPlayer: Color;
   private winner: Color | null;
-  private state: GameState;
-  private history: Move[];
   private turnCount: number;
+  private state: GameState;
   private endReason: GameEndReason | null;
-  private cachedLegalMoves: Partial<Record<number, Move[]>>;
-  private cachedCaptureForced: Partial<Record<number, boolean>>;
-  private cachedCheck: Partial<Record<number, { isInCheck: boolean; checkers: Piece[] }>>;
+
+  private history: Move[];
+  private cachedLegalMoves: Map<ZobristHash, Move[]>;
+  private cachedCaptureForced: Map<ZobristHash, boolean>;
+  private cachedCheck: Map<ZobristHash, { isInCheck: boolean; checkers: Piece[] }>;
+
+  private boardHash: ZobristHash;
 
   constructor(board?: Board, currentPlayer?: Color) {
     this.board = board ?? new Board();
+
     this.currentPlayer = currentPlayer ?? Color.Black;
     this.winner = null;
-    this.endReason = null;
-    this.state = GameState.Initial;
     this.turnCount = 0;
+    this.state = GameState.Initial;
+    this.endReason = null;
+
     this.history = [];
-    this.cachedLegalMoves = {};
-    this.cachedCaptureForced = {};
-    this.cachedCheck = {};
-  }
+    this.cachedLegalMoves = new Map();
+    this.cachedCaptureForced = new Map();
+    this.cachedCheck = new Map();
 
-  private switchPlayer(): void {
-    this.currentPlayer = reverseColor(this.currentPlayer);
-    this.turnCount++;
-  }
-
-  private applyPromotionToMove(move: Move): Move[] {
-    const isPawn: boolean = move.piece?.type === PieceType.Pawn;
-    const isPromotionRank: boolean =
-      move.piece?.color === Color.White ? move.to.rank === Rank.Rank8 : move.to.rank === Rank.Rank1;
-    if (isPawn && isPromotionRank) {
-      return [
-        { ...move, promotion: PieceType.Queen },
-        { ...move, promotion: PieceType.Rook },
-        { ...move, promotion: PieceType.Bishop },
-        { ...move, promotion: PieceType.Knight },
-      ];
-    }
-    return [move];
-  }
-
-  private generateCandidateMoves(color: Color): { captureMoves: Move[]; quietMoves: Move[] } {
-    const ownPieces = this.board.getAllPieces(color);
-
-    const captureMoves: Move[] = [];
-    const quietMoves: Move[] = [];
-
-    for (const piece of ownPieces) {
-      if (!piece.location) continue;
-
-      const destinations = this.board.getMovableLocations(piece);
-      for (const to of destinations) {
-        const move = this.makeMove(piece.location, to);
-        if (!move) continue;
-        if (move.captured) {
-          captureMoves.push(move);
-        } else {
-          quietMoves.push(move);
-        }
-      }
-    }
-
-    return { captureMoves, quietMoves };
+    this.boardHash = computeZobristHash(this.board, this.currentPlayer);
   }
 
   getBoard(): Board {
@@ -115,26 +97,26 @@ export class Game implements GameAPI {
     return this.currentPlayer;
   }
 
-  startGame(): { success: boolean; error?: GameError } {
-    if (this.state !== GameState.Initial) {
-      return { success: false, error: GameError.GameAlreadyStarted };
-    }
-    this.state = GameState.InPlay;
-    return { success: true };
-  }
 
   getWinner(): Color | null {
     return this.winner;
+  }
+
+
+  getBoardHash(): ZobristHash {
+    return this.boardHash;
   }
 
   getEndReason(): GameEndReason | null {
     return this.endReason;
   }
 
-  private finishGame(winner: Color | null, endReason: GameEndReason): void {
-    this.winner = winner;
-    this.endReason = endReason;
-    this.state = GameState.Finished;
+  startGame(): { success: boolean; error?: GameError } {
+    if (this.state !== GameState.Initial) {
+      return { success: false, error: GameError.GameAlreadyStarted };
+    }
+    this.state = GameState.InPlay;
+    return { success: true };
   }
 
   progressTurn(
@@ -156,30 +138,45 @@ export class Game implements GameAPI {
     let endReason: GameEndReason | undefined;
     let realPromotion: PieceType | null = promotion ?? null;
 
-    const opponent = reverseColor(color);
+    const opponent : Color = reverseColor(color);
 
     if (color !== this.currentPlayer) {
       error = GameError.NotYourTurn;
       return { success, end, winner, error, endReason };
     }
 
-    const fromKey = locationToKey(from);
-    const toKey = locationToKey(to);
-    const legalMoves = this.getLegalMoves(color);
-    const move = legalMoves.find(
+    if (this.state === GameState.Initial) {
+      error = GameError.GameNotStarted;
+      return { success, end, winner, error, endReason };
+    }
+
+    if (this.state === GameState.Finished) {
+      error = GameError.GameFinished;
+      return { success, end, winner, error, endReason };
+    }
+
+    const fromKey : LocationKey = locationToKey(from);
+    const toKey : LocationKey = locationToKey(to);
+    const legalMoves : Move[] = this.getLegalMoves(color);
+    const move : Move | undefined = legalMoves.find(
       (m) =>
         locationToKey(m.from) === fromKey &&
         locationToKey(m.to) === toKey &&
         m.promotion === realPromotion,
     );
-    if (!move) {
+    if (move === undefined) {
+      error = GameError.InvalidMove;
+      return { success, end, winner, error, endReason };
+    }
+
+    const appliedMove = this.applyMove(move);
+    if (appliedMove === null) {
       error = GameError.InvalidMove;
       return { success, end, winner, error, endReason };
     }
 
     success = true;
-    this.applyMove(move);
-    this.history.push(move);
+    this.history.push(appliedMove);
     this.switchPlayer();
 
     const isOnlyKingLeft = this.isOnlyKingLeft(opponent);
@@ -220,60 +217,148 @@ export class Game implements GameAPI {
     return { success, end, winner, error, endReason };
   }
 
+  private switchPlayer(): void {
+    this.currentPlayer = reverseColor(this.currentPlayer);
+    this.turnCount++;
+    this.boardHash = toggleSideToMove(this.boardHash);
+  }
+
+  private finishGame(winner: Color | null, endReason: GameEndReason): void {
+    this.winner = winner;
+    this.endReason = endReason;
+    this.state = GameState.Finished;
+  }
+
   getLegalMoves(color: Color): Move[] {
-    const turn = this.turnCount;
     const isCurrentPlayer = color === this.currentPlayer;
-    const cached = this.cachedLegalMoves[turn];
+    const key = isCurrentPlayer ? this.boardHash : toggleSideToMove(this.boardHash);
+    const cached = this.cachedLegalMoves.get(key);
 
-    if (isCurrentPlayer && cached) return cached;
+    if (cached !== undefined) return cached;
 
-    const { legalMoves, captureForced } = this.getLegalMovesNoCache(color);
-
-    if (isCurrentPlayer) {
-      this.cachedLegalMoves[turn] = legalMoves;
-      this.cachedCaptureForced[turn] = captureForced;
-    }
-    return legalMoves;
-  }
-
-  isCaptureForced(): boolean {
-    const turn = this.turnCount;
-    const cached = this.cachedCaptureForced[turn];
-    if (cached) return cached;
-    const { captureForced } = this.getLegalMovesNoCache(this.currentPlayer);
-    return captureForced;
-  }
-
-  getLegalMovesNoCache(color: Color): { legalMoves: Move[]; captureForced: boolean } {
     const { captureMoves, quietMoves } = this.generateCandidateMoves(color);
 
-    const promotedCaptureMoves = captureMoves.flatMap((move) => this.applyPromotionToMove(move));
-    const promotedQuietMoves = quietMoves.flatMap((move) => this.applyPromotionToMove(move));
-
-    const filteredCaptureMoves = promotedCaptureMoves.filter(
-      (move) => !this.checkForNextCheck(move, color),
-    );
-    const filteredQuietMoves = promotedQuietMoves.filter(
-      (move) => !this.checkForNextCheck(move, color),
-    );
-
-    if (filteredCaptureMoves.length > 0) {
-      return { legalMoves: filteredCaptureMoves, captureForced: true };
+    if (captureMoves.length > 0) {
+      this.cachedLegalMoves.set(key, captureMoves);
+      this.cachedCaptureForced.set(key, true);
+      return captureMoves;
     }
-    return { legalMoves: filteredQuietMoves, captureForced: false };
+    this.cachedLegalMoves.set(key, quietMoves);
+    this.cachedCaptureForced.set(key, false);
+    return quietMoves;
+  }
+  
+  isCaptureForced(): boolean {
+    const key = this.boardHash;
+    const cached = this.cachedCaptureForced.get(key);
+    if (cached !== undefined) return cached;
+
+    const { captureMoves, quietMoves } = this.generateCandidateMoves(this.currentPlayer);
+    if (captureMoves.length > 0) {
+      this.cachedLegalMoves.set(key, captureMoves);
+      this.cachedCaptureForced.set(key, true);
+      return true;
+    }
+    this.cachedLegalMoves.set(key, quietMoves);
+    this.cachedCaptureForced.set(key, false);
+    return false;
   }
 
   checkForCheck(color: Color): { isInCheck: boolean; checkers: Piece[] } {
-    const turn = this.turnCount;
-    const cached = this.cachedCheck[turn];
-    if (color === this.currentPlayer && cached) return cached;
+    const isCurrentPlayer : boolean = color === this.currentPlayer;
+    const key : ZobristHash = isCurrentPlayer ? this.boardHash : toggleSideToMove(this.boardHash);
+    
+    const cached : { isInCheck: boolean; checkers: Piece[] } | undefined = this.cachedCheck.get(key);
+    if (cached !== undefined) return cached;
 
     const result = this.checkForCheckByBoard(this.board, color);
 
-    if (color === this.currentPlayer) {
-      this.cachedCheck[turn] = result;
-    }
+    this.cachedCheck.set(key, result);
+
     return result;
+  }
+
+  private applyPromotionToMove(move: Move): Move[] {
+    const isPawn: boolean = move.piece?.type === PieceType.Pawn;
+    const isPromotionRank: boolean =
+      move.piece?.color === Color.White ? move.to.rank === Rank.Rank8 : move.to.rank === Rank.Rank1;
+    if (isPawn && isPromotionRank) {
+      return [
+        { ...move, promotion: PieceType.Queen },
+        { ...move, promotion: PieceType.Rook },
+        { ...move, promotion: PieceType.Bishop },
+        { ...move, promotion: PieceType.Knight },
+      ];
+    }
+    return [move];
+  }
+
+  private generateCandidateMoves(color: Color): { captureMoves: Move[]; quietMoves: Move[] } {
+    const ownPieces : Piece[] = this.board.getAllPieces(color);
+    const captureMoves: Move[] = [];
+    const quietMoves: Move[] = [];
+
+    for (const piece of ownPieces) {
+      if (!piece.location) continue;
+
+      const destinations : Location[] = this.board.getMovableLocations(piece);
+      for (const to of destinations) {
+        const move : Move | null = this.makeMove(piece.location, to);
+        if (move === null) continue;
+        if (move.captured) {
+          captureMoves.push(move);
+        } else {
+          quietMoves.push(move);
+        }
+      }
+    }
+
+    const promotedCaptureMoves : Move[] = captureMoves.flatMap((move) => this.applyPromotionToMove(move));
+    const promotedQuietMoves : Move[] = quietMoves.flatMap((move) => this.applyPromotionToMove(move));
+
+    const filteredCaptureMoves : Move[] = promotedCaptureMoves.filter(
+      (move) => !this.checkForNextCheck(move, color),
+    );
+    const filteredQuietMoves : Move[] = promotedQuietMoves.filter(
+      (move) => !this.checkForNextCheck(move, color),
+    );
+
+    return { captureMoves: filteredCaptureMoves, quietMoves: filteredQuietMoves };
+  }
+
+  private checkForNextCheck(move: Move, color: Color): boolean {
+    this.applyMove(move);
+    const { isInCheck } = this.checkForCheckByBoard(this.board, color);
+    this.rollbackMove(move);
+    return isInCheck;
+  }
+
+  private checkForCheckByBoard(
+    board: Board,
+    color: Color,
+  ): { isInCheck: boolean; checkers: Piece[] } {
+    const opponent : Color = reverseColor(color);
+    const kingPieces : Piece[] = board.getAllPiecesByPieceKey(`${color}_${PieceType.King}`);
+
+    const kingLocations : (Location | undefined)[] = kingPieces
+      .map((p) => p.location)
+      .filter((location) => location !== undefined);
+    if (kingLocations.length === 0) {
+      return { isInCheck: false, checkers: [] };
+    }
+
+    const attackers : Piece[] = board
+      .getAllPieces(opponent)
+      .filter(
+        (p) =>
+          p.location &&
+          kingLocations.some((location) => board.canPieceAttackLocation(p, location!)),
+      );
+
+    return {
+      isInCheck: attackers.length > 0,
+      checkers: attackers,
+    };
   }
 
   checkForCheckmate(color: Color): {
@@ -335,23 +420,43 @@ export class Game implements GameAPI {
       piece,
       captured,
       promotion: promotion ?? null,
-    };
+    } as Move;
   }
 
-  private applyMove(move: Move): void {
+  private applyMove(move: Move): Move | null {
     const piece = move.piece ?? this.board.getPieceByLocation(move.from);
     if (!piece) {
-      return;
+      return null;
     }
+
+    const capturedBeforeMove: Piece | null =
+      move.captured ?? this.board.getPieceByLocation(move.to) ?? null;
+
+    const pieceTypeBefore = piece.type;
+    const pieceTypeAfter = move.promotion ?? piece.type;
+
+    const info: ZobristMoveInfo = {
+      from: move.from,
+      to: move.to,
+      pieceColor: piece.color,
+      pieceTypeBefore,
+      pieceTypeAfter,
+      capturedPieceColor: capturedBeforeMove?.color ?? null,
+      capturedPieceType: capturedBeforeMove?.type ?? null,
+    };
+
+    this.boardHash = updateHashForMove(this.boardHash, info, false);
 
     move.piece = piece;
 
     const captured = this.board.movePiece(piece, move.to);
-    move.captured = captured ?? move.captured ?? null;
+    move.captured = captured ?? capturedBeforeMove ?? move.captured ?? null;
 
     if (move.promotion) {
       this.board.changePieceType(piece, move.promotion);
     }
+
+    return move;
   }
 
   private rollbackMove(move: Move): void {
@@ -359,6 +464,21 @@ export class Game implements GameAPI {
     if (!piece) {
       return;
     }
+
+    const pieceTypeAfter = move.promotion ?? piece.type;
+    const pieceTypeBefore = move.promotion ? PieceType.Pawn : piece.type;
+
+    const info: ZobristMoveInfo = {
+      from: move.from,
+      to: move.to,
+      pieceColor: piece.color,
+      pieceTypeBefore,
+      pieceTypeAfter,
+      capturedPieceColor: move.captured?.color ?? null,
+      capturedPieceType: move.captured?.type ?? null,
+    };
+
+    this.boardHash = updateHashForMove(this.boardHash, info, true);
 
     if (move.promotion) {
       this.board.changePieceType(piece, PieceType.Pawn);
@@ -371,38 +491,22 @@ export class Game implements GameAPI {
     }
   }
 
-  private checkForNextCheck(move: Move, color: Color): boolean {
-    this.applyMove(move);
-    const { isInCheck } = this.checkForCheckByBoard(this.board, color);
-    this.rollbackMove(move);
-    return isInCheck;
-  }
-
-  private checkForCheckByBoard(
-    board: Board,
-    color: Color,
-  ): { isInCheck: boolean; checkers: Piece[] } {
-    const opponent = reverseColor(color);
-    const kingPieces = board.getAllPiecesByPieceKey(`${color}_${PieceType.King}`);
-
-    const kingLocations = kingPieces
-      .map((p) => p.location)
-      .filter((location) => location !== undefined);
-    if (kingLocations.length === 0) {
-      return { isInCheck: false, checkers: [] };
+  applyMoveForSearch(move: Move): void {
+    const appliedMove = this.applyMove(move);
+    if (!appliedMove) {
+      return;
     }
-
-    const attackers = board
-      .getAllPieces(opponent)
-      .filter(
-        (p) =>
-          p.location &&
-          kingLocations.some((location) => board.canPieceAttackLocation(p, location!)),
-      );
-
-    return {
-      isInCheck: attackers.length > 0,
-      checkers: attackers,
-    };
+    this.history.push(appliedMove);
+    this.switchPlayer();
   }
+
+  rollbackMoveForSearch(): void {
+    const move = this.history.pop();
+    if (!move) {
+      return;
+    }
+    this.switchPlayer();
+    this.rollbackMove(move);
+  }
+
 }

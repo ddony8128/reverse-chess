@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { Board } from '@/engine/board';
 import { useMemo, useState, useEffect } from 'react';
-import { Color, reverseColor, locationToKey } from '@/engine/types';
+import { Color, locationToKey } from '@/engine/types';
 import type { Location, PieceType, Move } from '@/engine/types';
 import { createEmptyBoard, cloneBoard } from '@/engine/boardUtils';
 import { ArrowRight, ArrowLeft, RotateCcw, SkipForward } from 'lucide-react';
@@ -38,7 +38,7 @@ export function TutorialPage() {
     setGame(newGame);
     setSelectedLocation(null);
     setValidMoves([]);
-    setLegalMoves(newGame.getLegalMovesNoCache(Color.Black).legalMoves);
+    setLegalMoves(newGame.getLegalMoves(Color.Black));
     setCurrentPlayer(Color.Black);
     setPromotionActive(false);
     setPromotionLocation(null);
@@ -73,9 +73,13 @@ export function TutorialPage() {
       );
       const isPromotionMove = promotionTypes.length > 0;
 
-      board.movePiece(selectedPiece, location);
-
       if (isPromotionMove) {
+        const virtualBoard = cloneBoard(board);
+        const virtualSelectedPiece = virtualBoard.getPieceByLocation(selectedLocation!);
+        if (virtualSelectedPiece) {
+          virtualBoard.movePiece(virtualSelectedPiece, location);
+        }
+        setBoard(virtualBoard);
         setPromotionActive(true);
         setPromotionLocation(location);
         setPromotionOptionsState(promotionTypes);
@@ -83,13 +87,20 @@ export function TutorialPage() {
         return;
       }
 
-      const nextPlayer = reverseColor(currentPlayer);
+      const move = candidateMoves[0];
+      if (!move) return;
+
+      game.applyMoveForSearch(move);
+      const updatedBoard = game.getBoard();
+      const nextPlayer = game.getCurrentPlayer();
+
+      setBoard(updatedBoard);
       setSelectedLocation(null);
       setValidMoves([]);
       setCurrentPlayer(nextPlayer);
-      setLegalMoves(game.getLegalMovesNoCache(nextPlayer).legalMoves);
+      setLegalMoves(game.getLegalMoves(nextPlayer));
 
-      if (step.expected && step.expected.check(board)) {
+      if (step.expected && step.expected.check(updatedBoard)) {
         setStepCompleted(true);
       }
       return;
@@ -116,10 +127,21 @@ export function TutorialPage() {
   const handlePromotion = (location: Location, promotion: PieceType) => {
     if (!board || !game) return;
 
-    const piece = board.getPieceByLocation(location);
-    if (!piece) return;
+    if (!selectedLocation) return;
 
-    board.changePieceType(piece, promotion);
+    const fromKey = locationToKey(selectedLocation);
+    const toKey = locationToKey(location);
+
+    const promotionMove = legalMoves.find(
+      (m) =>
+        locationToKey(m.from) === fromKey &&
+        locationToKey(m.to) === toKey &&
+        m.promotion === promotion,
+    );
+    if (!promotionMove) return;
+
+    const baseBoard = game.getBoard();
+    setBoard(baseBoard);
 
     setPromotionActive(false);
     setPromotionLocation(null);
@@ -127,11 +149,15 @@ export function TutorialPage() {
     setSelectedLocation(null);
     setValidMoves([]);
 
-    const nextPlayer = reverseColor(currentPlayer);
-    setCurrentPlayer(nextPlayer);
-    setLegalMoves(game.getLegalMovesNoCache(nextPlayer).legalMoves);
+    game.applyMoveForSearch(promotionMove);
+    const finalBoard = game.getBoard();
+    const nextPlayer = game.getCurrentPlayer();
 
-    if (step.expected && step.expected.check(board)) {
+    setBoard(finalBoard);
+    setCurrentPlayer(nextPlayer);
+    setLegalMoves(game.getLegalMoves(nextPlayer));
+
+    if (step.expected && step.expected.check(finalBoard)) {
       setStepCompleted(true);
     }
   };
@@ -158,7 +184,7 @@ export function TutorialPage() {
     setGame(newGame);
     setSelectedLocation(null);
     setValidMoves([]);
-    setLegalMoves(newGame.getLegalMovesNoCache(Color.Black).legalMoves);
+    setLegalMoves(newGame.getLegalMoves(Color.Black));
 
     if (step.expected) {
       setStepCompleted(step.expected.check(clonedBoard));
@@ -229,7 +255,7 @@ export function TutorialPage() {
 
           <Button
             onClick={handleNextStep}
-            disabled={!canProceed}
+            disabled={!isLastStep && !canProceed}
             className="btn-menu flex items-center gap-2"
           >
             {isLastStep ? '완료' : '다음'}
