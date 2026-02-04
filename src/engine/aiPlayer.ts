@@ -15,17 +15,22 @@ export interface AIPlayerAPI {
   getNextMove(board: Board, color: Color): Move;
 }
 
-const TIME_LIMIT_MS_EASY = 300;
-const TIME_LIMIT_MS_HARD = 500;
-const INITIAL_DEPTH_EASY = 5;
-const INITIAL_DEPTH_HARD = 7;
+type ScoredMove = {
+  move: Move;
+  score: number;
+};
+
+const TIME_LIMIT_MS_EASY = 1000;
+const TIME_LIMIT_MS_HARD = 30000;
+const INITIAL_DEPTH_EASY = 2;
+const INITIAL_DEPTH_HARD = 2;
 const CANDIDATE_COUNT_EASY = 10;
 const CANDIDATE_COUNT_HARD = 20;
 
 const MAX_DEPTH_LIMIT_EASY = 7;
 const MAX_DEPTH_LIMIT_HARD = 10;
 const MIN_DEPTH_LIMIT_EASY = 2;
-const MIN_DEPTH_LIMIT_HARD = 4;
+const MIN_DEPTH_LIMIT_HARD = 2;
 
 const POSITIVE_INFINITY = Number.POSITIVE_INFINITY;
 const NEGATIVE_INFINITY = Number.NEGATIVE_INFINITY;
@@ -34,6 +39,8 @@ export class AIPlayer implements AIPlayerAPI {
   private timeLimitMs: number;
   private initialDepth: number;
   private candidateCount: number;
+
+  private ttHitCount: number = 0;
 
   private readonly tt: TranspositionTable;
   private timeExceeded: boolean = false;
@@ -55,7 +62,6 @@ export class AIPlayer implements AIPlayerAPI {
       this.candidateCount = CANDIDATE_COUNT_HARD;
     }
 
-    // 난이도별 baseDepth 범위 강제
     this.initialDepth = this.clampDepth(this.initialDepth);
   }
 
@@ -75,26 +81,69 @@ export class AIPlayer implements AIPlayerAPI {
   }
 
   getNextMove(board: Board, color: Color): Move {
+    console.log('current depth', this.initialDepth);
+    this.ttHitCount = 0;
     const game = new Game(board, color);
 
     this.rootColor = color;
     this.deadlineMs = Date.now() + this.timeLimitMs;
     this.timeExceeded = false;
 
+    let bestMoves: Move[] = [];
     let currentDepth = this.initialDepth;
-    let topMoves = this.searchBestMoves(game, currentDepth, false, undefined);
+    let topMoves = this.searchBestMoves(game, currentDepth, true, undefined);
+    let delta = 0;
 
-    if (topMoves.length === 0) {
-      throw new Error('No legal moves available for AI.');
-    }
+    delta = this.timeExceeded ? -1 : 1;
 
     let extraSearchSucceeded = false;
 
-    while (!this.isTimeUp()) {
-      this.timeExceeded = false;
-      const nextDepth = currentDepth + 1;
+    while (delta === -1 && !extraSearchSucceeded) {
+      currentDepth += delta;
+      if (currentDepth === 0) {
+        bestMoves = game.getLegalMoves(color);
+        break;
+      }
 
-      const deeperTopMoves = this.searchBestMoves(game, nextDepth, true, topMoves);
+      this.timeExceeded = false;
+      const deeperTopMoves = this.searchBestMoves(
+        game,
+        currentDepth,
+        true,
+        undefined,
+      );
+
+      if (!this.timeExceeded && deeperTopMoves.length > 0) {
+        topMoves = deeperTopMoves;
+        extraSearchSucceeded = true;
+      }
+    }
+
+
+    if (delta === -1 && !extraSearchSucceeded) {
+      if (bestMoves.length === 0) {
+        bestMoves = game.getLegalMoves(color);
+      }
+      if (bestMoves.length === 0) {
+        throw new Error('No legal moves available for AI.');
+      }
+      
+      this.initialDepth = this.clampDepth(this.initialDepth - 1);
+      const randomIndex = Math.floor(Math.random() * bestMoves.length);
+      console.log('tt hit count', this.ttHitCount);
+      return bestMoves[randomIndex];
+    }
+
+    while (delta === 1 && !this.isTimeUp()) {
+      this.timeExceeded = false;
+      const nextDepth = currentDepth + delta;
+
+      const deeperTopMoves = this.searchBestMoves(
+        game,
+        nextDepth,
+        true,
+        topMoves,
+      );
 
       if (this.timeExceeded) break;
       
@@ -103,13 +152,26 @@ export class AIPlayer implements AIPlayerAPI {
       extraSearchSucceeded = true;
     }
 
-    if (extraSearchSucceeded) {
+    if (delta === 1 && extraSearchSucceeded) {
       this.initialDepth = this.clampDepth(this.initialDepth + 1);
-    } else if (this.isTimeUp()) {
+    } else if (delta === -1 && extraSearchSucceeded) {
       this.initialDepth = this.clampDepth(this.initialDepth - 1);
     }
 
-    return topMoves[0];
+    const bestScore = topMoves[0].score;
+    bestMoves = topMoves
+      .filter((s) => s.score === bestScore)
+      .map((s) => s.move);
+
+    if (bestMoves.length === 1) {
+      console.log('tt hit count', this.ttHitCount);
+      return bestMoves[0];
+    }
+    const randomIndex = Math.floor(Math.random() * bestMoves.length);
+
+    console.log('last depth', currentDepth);
+    console.log('tt hit count', this.ttHitCount);
+    return bestMoves[randomIndex];
   }
 
 
@@ -117,8 +179,8 @@ export class AIPlayer implements AIPlayerAPI {
     game: Game,
     depth: number,
     block: boolean,
-    topMoves?: Move[],
-  ): Move[] {
+    topMoves?: ScoredMove[],
+  ): ScoredMove[] {
     const currentPlayer = game.getCurrentPlayer();
 
     if (block && this.isTimeUp()) {
@@ -126,27 +188,35 @@ export class AIPlayer implements AIPlayerAPI {
       return [];
     }
 
-    const searchTargets = topMoves ?? game.getLegalMoves(currentPlayer);
-    
+    const searchTargets = topMoves?.map((s) => s.move) ?? game.getLegalMoves(currentPlayer);
+
     if (searchTargets.length === 0) {
       return [];
     }
 
     let bestScore = NEGATIVE_INFINITY;
-    let result : Move[] = [];
+    const scored: ScoredMove[] = [];
     for (const move of searchTargets) {
-        const score = this.miniMax(game, depth, NEGATIVE_INFINITY, POSITIVE_INFINITY, move, block);
-        if (block && this.timeExceeded) {
-          return [];
-        }
-        if (score >= bestScore) {
-            bestScore = score;
-            result.push(move);
-        }
+      const score = this.miniMax(
+        game,
+        depth,
+        NEGATIVE_INFINITY,
+        POSITIVE_INFINITY,
+        move,
+        block,
+      );
+      if (block && this.timeExceeded) {
+        return [];
+      }
+      if (score > bestScore) {
+        bestScore = score;
+      }
+      scored.push({ move, score });
     }
 
-    return result.slice(0, this.candidateCount);
-}
+    scored.sort((a, b) => b.score - a.score);
+    return scored.slice(0, this.candidateCount);
+  }
 
 
 private miniMax(
@@ -250,7 +320,10 @@ private miniMax(
         entry.orderedMovesBottom !== undefined &&
         entry.hasOnlyMove !== undefined &&
         entry.isEnded !== undefined &&
-        entry.staticScore !== undefined) return entry;
+        entry.staticScore !== undefined) {
+            this.ttHitCount++;
+            return entry;
+        }
 
 
     const currentPlayer = game.getCurrentPlayer();
@@ -276,7 +349,9 @@ private miniMax(
         newEntry.staticScore = this.evaluate(game);
     }
 
-
+    if (entry.legalMoves) {
+        this.ttHitCount++;
+    }
     newEntry.legalMoves = entry.legalMoves ?? game.getLegalMoves(game.getCurrentPlayer());
     if (newEntry.legalMoves.length === 1) {
         newEntry.hasOnlyMove = true;
