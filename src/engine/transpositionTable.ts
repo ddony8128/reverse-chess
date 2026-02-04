@@ -1,5 +1,5 @@
 import type { ZobristHash } from "@/lib/zobristHash";
-import type { GameEndReason, Move } from "./types";
+import type { Color, GameEndReason, Move } from "./types";
 import type { EvaluationScore } from "./types";
 
 
@@ -11,7 +11,8 @@ export type TranspositionTableEntry = {
     onlyMove? : Move,
     isEnded? : boolean,
     endReason? : GameEndReason,
-    Score?: EvaluationScore;
+    winner? : Color | null,
+    staticScore?: EvaluationScore;
 }
 
 export interface TranspositionTableAPI {
@@ -21,11 +22,12 @@ export interface TranspositionTableAPI {
 }
 
 export class TranspositionTable implements TranspositionTableAPI {
-    private readonly entries: Map<ZobristHash, TranspositionTableEntry> = new Map();
+    private entries: Map<ZobristHash, TranspositionTableEntry>;
     private readonly maxSize: number;
 
     constructor(maxSize: number = 10000) {
         this.maxSize = maxSize;
+        this.entries = new Map();
     }
 
     getEntry(hash: ZobristHash): TranspositionTableEntry | null {
