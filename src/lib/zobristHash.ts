@@ -11,7 +11,7 @@ const BOARD_SIZE = 64;
 const NUM_PIECE_KINDS = 12;
 const SEED_VALUE = 0x12345678;
 
-export type ZobristHash = number;
+export type ZobristHash = bigint;
 
 type PieceKindIndex = number;
 
@@ -31,15 +31,21 @@ function random32(): number {
   return seededRandom32();
 }
 
-const ZOBRIST_PIECES: number[][] = createPieceTable();
-const ZOBRIST_SIDE_TO_MOVE: ZobristHash = random32();
+function random64(): ZobristHash {
+  const hi = BigInt(random32());
+  const lo = BigInt(random32());
+  return (hi << 32n) ^ lo;
+}
 
-function createPieceTable(): number[][] {
-  const table: number[][] = [];
+const ZOBRIST_PIECES: ZobristHash[][] = createPieceTable();
+const ZOBRIST_SIDE_TO_MOVE: ZobristHash = random64();
+
+function createPieceTable(): ZobristHash[][] {
+  const table: ZobristHash[][] = [];
   for (let i = 0; i < NUM_PIECE_KINDS; i++) {
-    const row: number[] = [];
+    const row: ZobristHash[] = [];
     for (let j = 0; j < BOARD_SIZE; j++) {
-      row.push(random32());
+      row.push(random64());
     }
     table.push(row);
   }
@@ -84,7 +90,7 @@ function getSquareIndex(location: Location): number | null {
 }
 
 export function computeZobristHash(board: Board, currentPlayer: Color): ZobristHash {
-  let hash: ZobristHash = 0;
+  let hash: ZobristHash = 0n;
 
   const pieces = board.getAllPieces();
   for (const piece of pieces) {
