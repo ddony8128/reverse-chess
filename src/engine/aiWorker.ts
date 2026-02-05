@@ -62,7 +62,6 @@ ctx.onmessage = async (event: MessageEvent<ComputeMoveRequest>) => {
   const ai = getAI(data.difficulty);
   const move : Move | undefined = await ai.getNextMove(board, data.color, data.warmUp);
   LOCK = false;
-  console.log('try to send move', move);
   if (move !== undefined) {
     const response: ComputeMoveResponse = { type: 'move', move: move };
     ctx.postMessage(response);

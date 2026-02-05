@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
 import { Board } from '@/engine/board';
 import { Game } from '@/engine/game';
+import { AIWorkerClient } from '@/engine/aiWorkerClient';
 import {
   Color,
   type Move,
@@ -50,9 +51,20 @@ export function SinglePlayPage() {
   const [isEnded, setIsEnded] = useState(false);
   const [endModalOpen, setEndModalOpen] = useState(false);
 
+  const aiClientRef = useRef<AIWorkerClient | null>(null);
+
   useEffect(() => {
     startNewGame();
   }, []);
+
+
+  useEffect(() => {
+    aiClientRef.current = new AIWorkerClient();
+    return () => {
+      aiClientRef.current?.dispose();
+      aiClientRef.current = null;
+    };
+  }, [])
 
   const startNewGame = () => {
     const newGame = new Game();
@@ -90,14 +102,29 @@ export function SinglePlayPage() {
   const isPlayerTurn = currentPlayer === humanColor;
 
   useEffect(() => {
-    if (!game || !board || !aiPlayer) return;
+    if (!game || !board || !aiPlayer || aiClientRef.current === null) return;
     if (isEnded) return;
-    if (currentPlayer !== aiColor) return;
+    const warmUp = currentPlayer !== aiColor;
 
     const timer = window.setTimeout(() => {
-      const move = aiPlayer.getNextMove(board, aiColor);
-      handleTurnProgress(aiColor, move.from, move.to, move.promotion ?? undefined);
-    }, 0);
+      if (aiClientRef.current === null) return;
+      aiClientRef.current
+        .getNextMove(board, aiColor, resolvedDifficulty, warmUp)
+        .then((move) => {
+          if (warmUp) {
+            return;
+          }
+
+          if (!game || isEnded || currentPlayer !== aiColor) {
+            return;
+          }
+
+          handleTurnProgress(aiColor, move.from, move.to, move.promotion ?? undefined);
+        })
+        .catch((error) => {
+          console.error(error);
+        });
+    }, 10);
 
     return () => {
       window.clearTimeout(timer);
