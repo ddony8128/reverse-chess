@@ -1,13 +1,13 @@
 /// <reference lib="webworker" />
 
 import {
-    type DifficultyLevel,
-    type Location,
-    type Piece,
-    type SerializablePiece,
-    type ComputeMoveRequest,
-    type ComputeMoveResponse,
-    type Move,
+  type DifficultyLevel,
+  type Location,
+  type Piece,
+  type SerializablePiece,
+  type ComputeMoveRequest,
+  type ComputeMoveResponse,
+  type Move,
 } from './types';
 import { createAIPlayer, type AIPlayerAPI } from './aiPlayer';
 import { createEmptyBoard } from './boardUtils';
@@ -45,7 +45,6 @@ ctx.onmessage = async (event: MessageEvent<ComputeMoveRequest>) => {
   const data = event.data;
   if (data.type !== 'computeMove') return;
 
-
   let interrupted = false;
   while (LOCK) {
     const ai = getAI(data.difficulty);
@@ -61,9 +60,9 @@ ctx.onmessage = async (event: MessageEvent<ComputeMoveRequest>) => {
 
   const ai = getAI(data.difficulty);
   const move : Move | undefined = await ai.getNextMove(board, data.color, data.warmUp);
-  LOCK = false;
   if (move !== undefined) {
-    const response: ComputeMoveResponse = { type: 'move', move: move };
+    const response: ComputeMoveResponse = { type: 'move', move: move, requestId: data.requestId };
     ctx.postMessage(response);
   }
+  LOCK = false;
 };

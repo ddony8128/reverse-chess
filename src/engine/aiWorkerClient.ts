@@ -3,6 +3,7 @@ import { Color, type Move, type DifficultyLevel, type SerializablePiece, type Co
 
 export class AIWorkerClient {
   private worker: Worker;
+  private nextRequestId = 0;
 
   constructor() {
     this.worker = new Worker(
@@ -29,19 +30,24 @@ export class AIWorkerClient {
   async getNextMove(board: Board, color: Color, difficulty: DifficultyLevel, warmUp: boolean): Promise<Move> {
     const pieces = this.serializeBoard(board);
 
+    const requestId = this.nextRequestId++;
+
     const payload: ComputeMoveRequest = {
       type: 'computeMove',
       difficulty,
       color,
       board: pieces,
       warmUp,
+      requestId,
     };
 
     return new Promise<Move>((resolve, reject) => {
       const handleMessage = (event: MessageEvent<ComputeMoveResponse>) => {
         const data = event.data;
         if (data.type !== 'move') return;
+        if (data.requestId !== requestId) return;
         this.worker.removeEventListener('message', handleMessage);
+        this.worker.removeEventListener('error', handleError);
         resolve(data.move);
       };
 

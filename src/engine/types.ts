@@ -154,10 +154,12 @@ export type ComputeMoveRequest = {
     difficulty: DifficultyLevel;
     color: Color;
     board: SerializablePiece[];
-    warmUp: boolean;
+  warmUp: boolean;
+  requestId: number;
 }
 
 export type ComputeMoveResponse = {
   type: 'move';
+  requestId: number;
   move: Move;
 };

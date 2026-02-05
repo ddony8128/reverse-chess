@@ -52,6 +52,7 @@ export function SinglePlayPage() {
   const [endModalOpen, setEndModalOpen] = useState(false);
 
   const aiClientRef = useRef<AIWorkerClient | null>(null);
+  const aiRequestGenerationRef = useRef(0);
 
   useEffect(() => {
     startNewGame();
@@ -104,17 +105,22 @@ export function SinglePlayPage() {
   useEffect(() => {
     if (!game || !board || !aiPlayer || aiClientRef.current === null) return;
     if (isEnded) return;
-    const warmUp = currentPlayer !== aiColor;
+    if (currentPlayer !== aiColor) return;
 
-    const timer = window.setTimeout(() => {
-      if (aiClientRef.current === null) return;
-      aiClientRef.current
-        .getNextMove(board, aiColor, resolvedDifficulty, warmUp)
+    const requestGeneration = ++aiRequestGenerationRef.current;
+
+    const makeRequest = () => {
+      const client = aiClientRef.current;
+      if (!client) return;
+
+      const warmUp = false;
+
+      client
+        .getNextMove(board, currentPlayer, resolvedDifficulty, warmUp)
         .then((move) => {
-          if (warmUp) {
+          if (requestGeneration !== aiRequestGenerationRef.current) {
             return;
           }
-
           if (!game || isEnded || currentPlayer !== aiColor) {
             return;
           }
@@ -123,8 +129,17 @@ export function SinglePlayPage() {
         })
         .catch((error) => {
           console.error(error);
+          if (requestGeneration !== aiRequestGenerationRef.current) {
+            return;
+          }
+          if (!game || isEnded || currentPlayer !== aiColor) {
+            return;
+          }
+          window.setTimeout(makeRequest, 50);
         });
-    }, 10);
+    };
+
+    const timer = window.setTimeout(makeRequest, 10);
 
     return () => {
       window.clearTimeout(timer);

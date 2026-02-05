@@ -1,4 +1,5 @@
 import { Board } from './board';
+import { cloneBoard } from './boardUtils';
 import { Game } from './game';
 import {
     Color,
@@ -23,22 +24,21 @@ type ScoredMove = {
   minDepth: number;
 };
 
-const TIME_LIMIT_MS_EASY = 5000;
-const TIME_LIMIT_MS_HARD = 30000;
+const TIME_LIMIT_MS_EASY = 1000;
+const TIME_LIMIT_MS_HARD = 5000;
 const INITIAL_DEPTH_EASY = 2;
-const INITIAL_DEPTH_HARD = 2;
+const INITIAL_DEPTH_HARD = 3;
 
-const MAX_DEPTH_LIMIT_EASY = 7;
-const MAX_DEPTH_LIMIT_HARD = 10;
+const MAX_DEPTH_LIMIT_EASY = 6;
+const MAX_DEPTH_LIMIT_HARD = 9;
 const MIN_DEPTH_LIMIT_EASY = 2;
-const MIN_DEPTH_LIMIT_HARD = 2;
+const MIN_DEPTH_LIMIT_HARD = 3;
 
-const MAX_DEPTH = 10;
 
 const POSITIVE_INFINITY = Number.POSITIVE_INFINITY;
 const NEGATIVE_INFINITY = Number.NEGATIVE_INFINITY;
 
-const BATCH_SIZE = 20;
+const BATCH_SIZE = 50;
 
 export class AIPlayer implements AIPlayerAPI {
   private timeLimitMs: number;
@@ -67,6 +67,7 @@ export class AIPlayer implements AIPlayerAPI {
     }
 
     this.initialDepth = this.clampDepth(this.initialDepth);
+    this.initTimeChecker();
   }
 
 
@@ -77,12 +78,14 @@ export class AIPlayer implements AIPlayerAPI {
 
   private yieldToEventLoop = () => new Promise<void>(resolve => setTimeout(resolve, 1));
 
-  private countIsTimeUp(): () => Promise<boolean> {
+  private innerIsTimeUp?: () => Promise<boolean>;
+
+  private initTimeChecker() {
     let count = 0;
-    
-    const innerIsTimeUp = async () => {
+    this.innerIsTimeUp = async () => {
         count++;
         if (count >= BATCH_SIZE) {
+            count = 0;
             await this.yieldToEventLoop();
             if (this.interrupted) {
                 this.interrupted = false;
@@ -92,12 +95,11 @@ export class AIPlayer implements AIPlayerAPI {
         }
         return false;
     }
-    return innerIsTimeUp as () => Promise<boolean>;
   }
 
   private async isTimeUp(): Promise<boolean> {
-    const innerIsTimeUp = this.countIsTimeUp();
-    return await innerIsTimeUp();
+    if (!this.innerIsTimeUp) return false;
+    return await this.innerIsTimeUp();
   }
 
   private clampDepth(depth: number): number {
@@ -111,34 +113,52 @@ export class AIPlayer implements AIPlayerAPI {
     return Math.min(max, Math.max(min, depth));
   }
 
+
+
   async getNextMove(board: Board, color: Color, warmUp: boolean): Promise<Move | undefined> {
-    
+    return this.innerGetNextMove(board, color, warmUp, true);
+  }
+
+  private async innerGetNextMove(
+    board: Board,
+    color: Color,
+    warmUp: boolean,
+    canRetry: boolean,
+  ): Promise<Move | undefined> {
     this.ttHitCount = 0;
-    let finalDepth = 0;
-    const game = new Game(board, color);
+
+    const searchGame = new Game(board, color);
+    const validationGame = new Game(cloneBoard(board), color);
 
     this.rootColor = color;
     if (warmUp) {
       this.deadlineMs = Date.now() + 10000000;
     } else {
-        this.deadlineMs = Date.now() + this.timeLimitMs;
+      this.deadlineMs = Date.now() + this.timeLimitMs;
     }
     this.timeExceeded = false;
 
     let currentDepth = this.initialDepth;
-    
+
     let baseSearchSucceeded = false;
     let extraSearchSucceeded = false;
-    
-    let bestMove : ScoredMove = await this.searchBestMove(game, currentDepth, NEGATIVE_INFINITY, POSITIVE_INFINITY);
-    
+
+    let bestMove: ScoredMove = await this.searchBestMove(
+      searchGame,
+      currentDepth,
+      NEGATIVE_INFINITY,
+      POSITIVE_INFINITY,
+    );
+
     if (!this.timeExceeded) baseSearchSucceeded = true;
 
-    while (currentDepth < MAX_DEPTH && !this.timeExceeded) {
+    const maxDepth =
+      this.difficulty === difficultyLevel.Easy ? MAX_DEPTH_LIMIT_EASY : MAX_DEPTH_LIMIT_HARD;
+    while (currentDepth < maxDepth && !this.timeExceeded) {
       const nextDepth = currentDepth + 1;
 
       const deeperBestMove = await this.searchBestMove(
-        game,
+        searchGame,
         nextDepth,
         NEGATIVE_INFINITY,
         POSITIVE_INFINITY,
@@ -150,15 +170,35 @@ export class AIPlayer implements AIPlayerAPI {
       bestMove = deeperBestMove;
     }
 
-
     if (!warmUp && extraSearchSucceeded) {
       this.initialDepth = this.clampDepth(this.initialDepth + 1);
     } else if (!warmUp && !baseSearchSucceeded) {
       this.initialDepth = this.clampDepth(this.initialDepth - 1);
     }
 
-    finalDepth = currentDepth;
-    console.log(`final depth: ${finalDepth}`);
+    if (!warmUp && bestMove.move) {
+      const legalMovesAtStart = validationGame.getLegalMoves(validationGame.getCurrentPlayer());
+      const move = bestMove.move;
+      const isLegalOnOriginal = legalMovesAtStart.some((legalMove) => {
+        return (
+          legalMove.from.file === move.from.file &&
+          legalMove.from.rank === move.from.rank &&
+          legalMove.to.file === move.to.file &&
+          legalMove.to.rank === move.to.rank &&
+          (legalMove.promotion ?? null) === (move.promotion ?? null)
+        );
+      });
+
+      if (!isLegalOnOriginal && canRetry) {
+        console.error('[AI] Selected move not legal on original board. Clearing TT and retrying.', {
+          move,
+          color,
+        });
+        this.tt.clear();
+        return this.innerGetNextMove(board, color, warmUp, true);
+      }
+    }
+
     return warmUp ? undefined : bestMove.move;
   }
 
@@ -177,7 +217,8 @@ export class AIPlayer implements AIPlayerAPI {
     if (currentEntryTrust >= depth &&
         currentEntry.bestMove !== undefined &&
         currentEntry.score !== undefined) {
-      return { move: currentEntry.bestMove, score: currentEntry.score, minDepth: currentEntryTrust } as ScoredMove;
+      const move = currentEntry.bestMove ? this.cloneMove(currentEntry.bestMove) : undefined;
+      return { move, score: currentEntry.score, minDepth: currentEntryTrust } as ScoredMove;
     }
    
     if (currentEntry.isEnded) {
@@ -193,7 +234,7 @@ export class AIPlayer implements AIPlayerAPI {
         return endedScoredMove;
     }
 
-    if (depth <= 0 || this.timeExceeded) {
+    if ( (currentEntry.hasOnlyMove === undefined || currentEntry.hasOnlyMove === false ) && (depth <= 0 || this.timeExceeded)) {
         if (currentEntryTrust > 0) {
             return { move: currentEntry.bestMove, score: currentEntry.score ?? 0, minDepth: currentEntryTrust } as ScoredMove;
         }
@@ -217,7 +258,7 @@ export class AIPlayer implements AIPlayerAPI {
     for (const move of onlyTarget) {
       const nextDepth = depth;
       game.applyMoveForSearch(move);
-      const {move: nextMove, score, minDepth} = await this.searchBestMove(
+      const {score, minDepth} = await this.searchBestMove(
         game,
         nextDepth,
         alpha,
@@ -226,7 +267,7 @@ export class AIPlayer implements AIPlayerAPI {
       game.rollbackMoveForSearch();
       bestScore = score;
       trustDepth = minDepth;
-      if (nextMove) nextTopMoves.push(nextMove);
+      nextTopMoves.push(move);
     }
 
     for (const move of primarySearchTargets) {
@@ -293,13 +334,11 @@ export class AIPlayer implements AIPlayerAPI {
 
     if (this.timeExceeded) {
         trustDepth += 0.5;
-        if (currentEntryTrust >= trustDepth) {
-            trustDepth = currentEntryTrust - 0.1;
+        if (currentEntryTrust > trustDepth) {
+            trustDepth = currentEntryTrust;
             bestScore = currentEntry.score ?? 0;
-            nextTopMoves = currentEntry.bestMove ? [currentEntry.bestMove] : [];
-        } else {
-            trustDepth -= 0.1
-        }
+            nextTopMoves = currentEntry.bestMove ? [this.cloneMove(currentEntry.bestMove)] : [];
+        } 
     }
     let bestMove : Move | undefined;
 
@@ -319,7 +358,15 @@ export class AIPlayer implements AIPlayerAPI {
     return { move: bestMove, score: bestScore, minDepth: trustDepth } as ScoredMove;
   }
 
-    private getTTEntry(game: Game): TranspositionTableEntry {
+  private cloneMove(move: Move): Move {
+    return {
+      from: move.from,
+      to: move.to,
+      promotion: move.promotion ?? null,
+    };
+  }
+
+  private getTTEntry(game: Game): TranspositionTableEntry {
     let newEntry : TranspositionTableEntry = {}
     const currentHash = game.getBoardHash();
     const entry : TranspositionTableEntry = this.tt.getEntry(currentHash) ?? {};
@@ -354,14 +401,12 @@ export class AIPlayer implements AIPlayerAPI {
         newEntry.isEnded = false;
     }
 
-    if (entry.legalMoves) {
-        this.ttHitCount++;
-    }
-    newEntry.legalMoves = entry.legalMoves ?? game.getLegalMoves(game.getCurrentPlayer());
+    const baseLegalMoves = entry.legalMoves ?? game.getLegalMoves(game.getCurrentPlayer());
+    newEntry.legalMoves = baseLegalMoves.map((m) => this.cloneMove(m));
     if (newEntry.legalMoves.length === 1) {
         newEntry.hasOnlyMove = true;
         newEntry.onlyMove = newEntry.legalMoves[0];
-        newEntry.orderedMovesTop = [newEntry.onlyMove];
+        newEntry.orderedMovesTop = [];
         newEntry.orderedMovesBottom = [];
     } else {
         newEntry.hasOnlyMove = false;
@@ -419,7 +464,7 @@ export class AIPlayer implements AIPlayerAPI {
     if (entry.depth && entry.depth >= depth) return;
     entry.depth = depth;
     entry.score = score;
-    entry.bestMove = bestMove;
+    entry.bestMove = bestMove ? this.cloneMove(bestMove) : undefined;
     this.tt.updateSearchWindow(currentHash, depth, score, bestMove);
 }
 
