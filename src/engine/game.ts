@@ -14,9 +14,7 @@ import type { Move, Piece, Location } from './types';
 import {
   computeZobristHash,
   toggleSideToMove,
-  updateHashForMove,
   type ZobristHash,
-  type ZobristMoveInfo,
 } from '@/lib/zobristHash';
 
 export interface GameAPI {
@@ -220,7 +218,7 @@ export class Game implements GameAPI {
   private switchPlayer(): void {
     this.currentPlayer = reverseColor(this.currentPlayer);
     this.turnCount++;
-    this.boardHash = toggleSideToMove(this.boardHash);
+    this.boardHash = computeZobristHash(this.board, this.currentPlayer);
   }
 
   private finishGame(winner: Color | null, endReason: GameEndReason): void {
@@ -429,33 +427,16 @@ export class Game implements GameAPI {
       return null;
     }
 
-    const capturedBeforeMove: Piece | null =
-      move.captured ?? this.board.getPieceByLocation(move.to) ?? null;
-
-    const pieceTypeBefore = piece.type;
-    const pieceTypeAfter = move.promotion ?? piece.type;
-
-    const info: ZobristMoveInfo = {
-      from: move.from,
-      to: move.to,
-      pieceColor: piece.color,
-      pieceTypeBefore,
-      pieceTypeAfter,
-      capturedPieceColor: capturedBeforeMove?.color ?? null,
-      capturedPieceType: capturedBeforeMove?.type ?? null,
-    };
-
-    this.boardHash = updateHashForMove(this.boardHash, info, false);
-
     move.piece = piece;
 
     const captured = this.board.movePiece(piece, move.to);
-    move.captured = captured ?? capturedBeforeMove ?? move.captured ?? null;
+    move.captured = captured ?? move.captured ?? null;
 
     if (move.promotion) {
       this.board.changePieceType(piece, move.promotion);
     }
 
+    this.boardHash = computeZobristHash(this.board, this.currentPlayer);
     return move;
   }
 
@@ -464,21 +445,6 @@ export class Game implements GameAPI {
     if (!piece) {
       return;
     }
-
-    const pieceTypeAfter = move.promotion ?? piece.type;
-    const pieceTypeBefore = move.promotion ? PieceType.Pawn : piece.type;
-
-    const info: ZobristMoveInfo = {
-      from: move.from,
-      to: move.to,
-      pieceColor: piece.color,
-      pieceTypeBefore,
-      pieceTypeAfter,
-      capturedPieceColor: move.captured?.color ?? null,
-      capturedPieceType: move.captured?.type ?? null,
-    };
-
-    this.boardHash = updateHashForMove(this.boardHash, info, true);
 
     if (move.promotion) {
       this.board.changePieceType(piece, PieceType.Pawn);
@@ -489,6 +455,8 @@ export class Game implements GameAPI {
     if (move.captured) {
       this.board.setPiece(move.to, move.captured);
     }
+
+    this.boardHash = computeZobristHash(this.board, this.currentPlayer);
   }
 
   applyMoveForSearch(move: Move): void {
