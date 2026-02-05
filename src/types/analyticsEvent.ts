@@ -28,4 +28,6 @@ export type EventParams = {
 
   page_path?: string;
   dwell_ms?: number;
+
+  error_message?: string;
 };

@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { PageHeader } from '@/components/PageHeader';
 import { Board } from '@/engine/board';
 import { Game } from '@/engine/game';
+import { trackEvent } from '@/lib/utils';
+import { EventName, type EventParams } from '@/types/analyticsEvent';
 import {
   Color,
   type Move,
@@ -37,9 +39,33 @@ export function TwoPlayerPage() {
   const [isEnded, setIsEnded] = useState(false);
   const [endModalOpen, setEndModalOpen] = useState(false);
 
+  const gameIdRef = useRef<string | null>(null);
+  const gameStartAtRef = useRef<number | null>(null);
+  const endedSentRef = useRef<boolean>(false);
+
+
   useEffect(() => {
     startNewGame();
   }, []);
+
+  useEffect(() => {
+    return () => {
+      if (!endedSentRef.current && gameIdRef.current) {
+        const duration =
+          gameStartAtRef.current
+            ? Date.now() - gameStartAtRef.current
+            : undefined;
+  
+        trackEvent(EventName.GameEnd, {
+          mode: "two",
+          game_id: gameIdRef.current,
+          end_reason: "abort",
+          duration_ms: duration,
+        });
+      }
+    };
+  }, [isEnded]);
+  
 
   const startNewGame = () => {
     const newGame = new Game();
@@ -60,6 +86,16 @@ export function TwoPlayerPage() {
     setEndModalOpen(false);
     setIsInCheck(false);
     setCaptureForced(false);
+
+    const newGameId = crypto.randomUUID();
+    gameIdRef.current = newGameId;
+    gameStartAtRef.current = Date.now();
+    endedSentRef.current = false;
+
+    trackEvent(EventName.GameStart, {
+      mode: 'two',
+      game_id: newGameId,
+    } as EventParams);
   };
 
   const handleTurnProgress = (
@@ -80,6 +116,40 @@ export function TwoPlayerPage() {
     setCaptureForced(game.isCaptureForced());
     setIsInCheck(game.checkForCheck(nextPlayer).isInCheck);
     if (result.end) {
+
+      if (!endedSentRef.current) {
+        endedSentRef.current = true;
+
+        const durationMs =
+          gameStartAtRef.current ? Date.now() - gameStartAtRef.current : undefined;
+
+        const winnerParam =
+          result.winner === Color.White
+            ? "white"
+            : result.winner === Color.Black
+              ? "black"
+              : "draw";
+
+        const endReasonParam =
+          result.endReason === GameEndReason.Checkmate
+            ? "checkmate"
+            : result.endReason === GameEndReason.Stalemate
+              ? "stalemate"
+              : result.endReason === GameEndReason.LoneIsland
+                ? "lone_island"
+                : result.endReason === GameEndReason.OnlyKingLeft
+                  ? "only_king_left"
+                  : undefined;
+
+        trackEvent(EventName.GameEnd, {
+          mode: "two",
+          game_id: gameIdRef.current ?? undefined,
+          winner: winnerParam,
+          end_reason: endReasonParam,
+          duration_ms: durationMs,
+        } as EventParams);
+      }
+
       setEndReason(result.endReason ?? null);
       setWinner(result.winner ?? null);
       setIsEnded(true);
@@ -207,7 +277,13 @@ export function TwoPlayerPage() {
               {isEnded ? (
                 <Button
                   variant="ghost"
-                  onClick={startNewGame}
+                  onClick={() => {
+                    trackEvent(EventName.RematchClick, {
+                      mode: 'two',
+                      prev_game_id: gameIdRef.current ?? undefined,
+                    } as EventParams);
+                    startNewGame();
+                  }}
                   className="text-muted-foreground hover:text-foreground flex items-center gap-2"
                 >
                   <RotateCcw className="h-4 w-4" />한 판 더 하기

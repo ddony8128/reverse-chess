@@ -22,6 +22,8 @@ import { ChessBoard } from '@/components/ChessBoard';
 import { GameResultModal } from '@/components/GameResultModal';
 import { CheckIndicator } from '@/components/CheckIndicator';
 import { createAIPlayer, type AIPlayerAPI } from '@/engine/aiPlayer';
+import { EventName, type EventParams } from '@/types/analyticsEvent';
+import { trackEvent } from '@/lib/utils';
 
 export function SinglePlayPage() {
   const { difficulty } = useParams<{ difficulty: string }>();
@@ -54,9 +56,13 @@ export function SinglePlayPage() {
   const aiClientRef = useRef<AIWorkerClient | null>(null);
   const aiRequestGenerationRef = useRef(0);
 
+  const gameIdRef = useRef<string | null>(null);
+  const gameStartAtRef = useRef<number | null>(null);
+  const endedSentRef = useRef<boolean>(false);
+
   useEffect(() => {
     startNewGame();
-  }, []);
+  }, [resolvedDifficulty]);
 
   useEffect(() => {
     aiClientRef.current = new AIWorkerClient();
@@ -64,7 +70,7 @@ export function SinglePlayPage() {
       aiClientRef.current?.dispose();
       aiClientRef.current = null;
     };
-  }, []);
+  }, [resolvedDifficulty]);
 
   const startNewGame = () => {
     const newGame = new Game();
@@ -97,9 +103,41 @@ export function SinglePlayPage() {
     setEndModalOpen(false);
     setIsInCheck(false);
     setCaptureForced(false);
+
+    const newGameId = crypto.randomUUID();
+    gameIdRef.current = newGameId;
+    gameStartAtRef.current = Date.now();
+    endedSentRef.current = false;
+
+    trackEvent(EventName.GameStart, {
+      mode: 'single',
+      game_id: newGameId,
+      difficulty: resolvedDifficulty === difficultyLevel.Easy ? 'easy' : 'hard',
+    } as EventParams);
   };
 
   const isPlayerTurn = currentPlayer === humanColor;
+
+
+  useEffect(() => {
+    return () => {
+      if (!endedSentRef.current && gameIdRef.current) {
+        const duration =
+          gameStartAtRef.current
+            ? Date.now() - gameStartAtRef.current
+            : undefined;
+  
+        trackEvent(EventName.GameEnd, {
+          mode: "single",
+          game_id: gameIdRef.current,
+          difficulty: resolvedDifficulty === difficultyLevel.Easy ? 'easy' : 'hard',
+          end_reason: "abort",
+          duration_ms: duration,
+        } as EventParams);
+      }
+    };
+  }, [isEnded]);
+
 
   useEffect(() => {
     if (!game || !board || !aiPlayer || aiClientRef.current === null) return;
@@ -137,7 +175,12 @@ export function SinglePlayPage() {
       };
 
       const handleFailure = (error: unknown) => {
-        console.error(error);
+        trackEvent(EventName.Error, {
+          mode: 'single',
+          difficulty: resolvedDifficulty === difficultyLevel.Easy ? 'easy' : 'hard',
+          error_message: error instanceof Error ? error.message : 'Unknown error',
+        } as EventParams);
+
         if (requestGeneration !== aiRequestGenerationRef.current) {
           return;
         }
@@ -218,6 +261,43 @@ export function SinglePlayPage() {
     setCaptureForced(game.isCaptureForced());
     setIsInCheck(game.checkForCheck(nextPlayer).isInCheck);
     if (result.end) {
+      
+      if (!endedSentRef.current) {
+        endedSentRef.current = true;
+
+        const durationMs =
+          gameStartAtRef.current ? Date.now() - gameStartAtRef.current : undefined;
+
+        const winnerParam =
+          result.winner === Color.White
+            ? "white"
+            : result.winner === Color.Black
+              ? "black"
+              : "draw";
+
+        const endReasonParam =
+          result.endReason === GameEndReason.Checkmate
+            ? "checkmate"
+            : result.endReason === GameEndReason.Stalemate
+              ? "stalemate"
+              : result.endReason === GameEndReason.LoneIsland
+                ? "lone_island"
+                : result.endReason === GameEndReason.OnlyKingLeft
+                  ? "only_king_left"
+                  : undefined;
+
+        trackEvent(EventName.GameEnd, {
+          mode: "single",
+          game_id: gameIdRef.current ?? undefined,
+          color_human: humanColor === Color.White ? 'white' : 'black',
+          winner: winnerParam,
+          end_reason: endReasonParam,
+          duration_ms: durationMs,
+          difficulty: resolvedDifficulty === difficultyLevel.Easy ? 'easy' : 'hard',
+        } as EventParams);
+      }
+
+
       setEndReason(result.endReason ?? null);
       setWinner(result.winner ?? null);
       setIsEnded(true);
@@ -350,7 +430,14 @@ export function SinglePlayPage() {
               {isEnded ? (
                 <Button
                   variant="ghost"
-                  onClick={startNewGame}
+                  onClick={() => {
+                    trackEvent(EventName.RematchClick, {
+                      mode: 'single',
+                      difficulty: resolvedDifficulty === difficultyLevel.Easy ? 'easy' : 'hard',
+                      prev_game_id: gameIdRef.current ?? undefined,
+                    } as EventParams);
+                    startNewGame();
+                  }}
                   className="text-muted-foreground hover:text-foreground flex items-center gap-2"
                 >
                   <RotateCcw className="h-4 w-4" />한 판 더 하기

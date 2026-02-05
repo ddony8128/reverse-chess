@@ -10,6 +10,8 @@ import { ChessBoard } from '@/components/ChessBoard';
 import { PageHeader } from '@/components/PageHeader';
 import { Game } from '@/engine/game';
 import { createTutorialSteps } from '@/assets/tutorialStep';
+import { trackEvent } from '@/lib/utils';
+import { EventName, type EventParams } from '@/types/analyticsEvent';
 
 export function TutorialPage() {
   const navigate = useNavigate();
@@ -30,6 +32,20 @@ export function TutorialPage() {
   const steps = useMemo(() => createTutorialSteps(), []);
   const step = steps[currentStep];
 
+
+  useEffect(() => {
+    trackEvent(EventName.TutorialStart, {
+    } as EventParams);
+  }, []);
+  
+  useEffect(() => {
+    if (currentStep < steps.length - 1) {
+      trackEvent(EventName.TutorialStepView, {
+        step_name: step.title,
+      } as EventParams);
+    }
+  }, [currentStep, step.title]);
+  
   useEffect(() => {
     const clonedBoard = cloneBoard(step.board);
     const newGame = new Game(clonedBoard, Color.Black);
@@ -166,6 +182,8 @@ export function TutorialPage() {
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
     } else {
+      trackEvent(EventName.TutorialComplete, {
+      } as EventParams);
       navigate('/');
     }
   };
