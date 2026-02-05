@@ -4,14 +4,12 @@ import {
   type DifficultyLevel,
   type Location,
   type Piece,
-  type SerializablePiece,
-  type ComputeMoveRequest,
-  type ComputeMoveResponse,
   type Move,
 } from './types';
 import { createAIPlayer, type AIPlayerAPI } from './aiPlayer';
 import { createEmptyBoard } from './boardUtils';
 import { Board } from './board';
+import type { ComputeMoveRequest, ComputeMoveResponse, SerializablePiece } from '@/types/workerMessage';
 
 const ctx: DedicatedWorkerGlobalScope = self as any;
 let LOCK = false;

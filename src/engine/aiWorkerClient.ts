@@ -1,5 +1,6 @@
 import type { Board } from '@/engine/board';
-import { Color, type Move, type DifficultyLevel, type SerializablePiece, type ComputeMoveRequest, type ComputeMoveResponse } from '@/engine/types';
+import { type Color, type Move, type DifficultyLevel } from '@/engine/types';
+import type { ComputeMoveRequest, ComputeMoveResponse, SerializablePiece } from '@/types/workerMessage';
 
 export class AIWorkerClient {
   private worker: Worker;
