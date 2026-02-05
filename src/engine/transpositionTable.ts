@@ -31,7 +31,7 @@ export class TranspositionTable implements TranspositionTableAPI {
     private entries: Map<ZobristHash, TranspositionTableEntry>;
     private readonly maxSize: number;
 
-    constructor(maxSize: number = 10000) {
+    constructor(maxSize: number = 300000) {
         this.maxSize = maxSize;
         this.entries = new Map();
     }
