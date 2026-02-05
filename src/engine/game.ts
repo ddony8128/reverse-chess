@@ -11,14 +11,9 @@ import {
   type LocationKey,
 } from './types';
 import type { Move, Piece, Location } from './types';
-import {
-  computeZobristHash,
-  toggleSideToMove,
-  type ZobristHash,
-} from '@/lib/zobristHash';
+import { computeZobristHash, toggleSideToMove, type ZobristHash } from '@/lib/zobristHash';
 
 export interface GameAPI {
-
   getBoard(): Board;
   getCurrentPlayer(): Color;
   getWinner(): Color | null;
@@ -38,12 +33,12 @@ export interface GameAPI {
     error?: GameError;
     endReason?: GameEndReason;
   };
-  
+
   getLegalMoves(color: Color): Move[];
 
   isCaptureForced(): boolean;
   checkForCheck(color: Color): { isInCheck: boolean; checkers: Piece[] };
-  
+
   checkForCheckmate(color: Color): { isInCheckmate: boolean; checkers: Piece[] };
   isStalemate(color: Color): boolean;
   isLoneIsland(color: Color): boolean;
@@ -54,7 +49,6 @@ export interface GameAPI {
 }
 
 export class Game implements GameAPI {
-
   private board: Board;
 
   private currentPlayer: Color;
@@ -95,11 +89,9 @@ export class Game implements GameAPI {
     return this.currentPlayer;
   }
 
-
   getWinner(): Color | null {
     return this.winner;
   }
-
 
   getBoardHash(): ZobristHash {
     return this.boardHash;
@@ -136,7 +128,7 @@ export class Game implements GameAPI {
     let endReason: GameEndReason | undefined;
     let realPromotion: PieceType | null = promotion ?? null;
 
-    const opponent : Color = reverseColor(color);
+    const opponent: Color = reverseColor(color);
 
     if (color !== this.currentPlayer) {
       error = GameError.NotYourTurn;
@@ -153,10 +145,10 @@ export class Game implements GameAPI {
       return { success, end, winner, error, endReason };
     }
 
-    const fromKey : LocationKey = locationToKey(from);
-    const toKey : LocationKey = locationToKey(to);
-    const legalMoves : Move[] = this.getLegalMoves(color);
-    const move : Move | undefined = legalMoves.find(
+    const fromKey: LocationKey = locationToKey(from);
+    const toKey: LocationKey = locationToKey(to);
+    const legalMoves: Move[] = this.getLegalMoves(color);
+    const move: Move | undefined = legalMoves.find(
       (m) =>
         locationToKey(m.from) === fromKey &&
         locationToKey(m.to) === toKey &&
@@ -245,7 +237,7 @@ export class Game implements GameAPI {
     this.cachedCaptureForced.set(key, false);
     return quietMoves;
   }
-  
+
   isCaptureForced(): boolean {
     const key = this.boardHash;
     const cached = this.cachedCaptureForced.get(key);
@@ -263,10 +255,10 @@ export class Game implements GameAPI {
   }
 
   checkForCheck(color: Color): { isInCheck: boolean; checkers: Piece[] } {
-    const isCurrentPlayer : boolean = color === this.currentPlayer;
-    const key : ZobristHash = isCurrentPlayer ? this.boardHash : toggleSideToMove(this.boardHash);
-    
-    const cached : { isInCheck: boolean; checkers: Piece[] } | undefined = this.cachedCheck.get(key);
+    const isCurrentPlayer: boolean = color === this.currentPlayer;
+    const key: ZobristHash = isCurrentPlayer ? this.boardHash : toggleSideToMove(this.boardHash);
+
+    const cached: { isInCheck: boolean; checkers: Piece[] } | undefined = this.cachedCheck.get(key);
     if (cached !== undefined) return cached;
 
     const result = this.checkForCheckByBoard(this.board, color);
@@ -292,16 +284,16 @@ export class Game implements GameAPI {
   }
 
   private generateCandidateMoves(color: Color): { captureMoves: Move[]; quietMoves: Move[] } {
-    const ownPieces : Piece[] = this.board.getAllPieces(color);
+    const ownPieces: Piece[] = this.board.getAllPieces(color);
     const captureMoves: Move[] = [];
     const quietMoves: Move[] = [];
 
     for (const piece of ownPieces) {
       if (!piece.location) continue;
 
-      const destinations : Location[] = this.board.getMovableLocations(piece);
+      const destinations: Location[] = this.board.getMovableLocations(piece);
       for (const to of destinations) {
-        const move : Move | null = this.makeMove(piece.location, to);
+        const move: Move | null = this.makeMove(piece.location, to);
         if (move === null) continue;
         if (move.captured) {
           captureMoves.push(move);
@@ -311,13 +303,17 @@ export class Game implements GameAPI {
       }
     }
 
-    const promotedCaptureMoves : Move[] = captureMoves.flatMap((move) => this.applyPromotionToMove(move));
-    const promotedQuietMoves : Move[] = quietMoves.flatMap((move) => this.applyPromotionToMove(move));
+    const promotedCaptureMoves: Move[] = captureMoves.flatMap((move) =>
+      this.applyPromotionToMove(move),
+    );
+    const promotedQuietMoves: Move[] = quietMoves.flatMap((move) =>
+      this.applyPromotionToMove(move),
+    );
 
-    const filteredCaptureMoves : Move[] = promotedCaptureMoves.filter(
+    const filteredCaptureMoves: Move[] = promotedCaptureMoves.filter(
       (move) => !this.checkForNextCheck(move, color),
     );
-    const filteredQuietMoves : Move[] = promotedQuietMoves.filter(
+    const filteredQuietMoves: Move[] = promotedQuietMoves.filter(
       (move) => !this.checkForNextCheck(move, color),
     );
 
@@ -335,17 +331,17 @@ export class Game implements GameAPI {
     board: Board,
     color: Color,
   ): { isInCheck: boolean; checkers: Piece[] } {
-    const opponent : Color = reverseColor(color);
-    const kingPieces : Piece[] = board.getAllPiecesByPieceKey(`${color}_${PieceType.King}`);
+    const opponent: Color = reverseColor(color);
+    const kingPieces: Piece[] = board.getAllPiecesByPieceKey(`${color}_${PieceType.King}`);
 
-    const kingLocations : (Location | undefined)[] = kingPieces
+    const kingLocations: (Location | undefined)[] = kingPieces
       .map((p) => p.location)
       .filter((location) => location !== undefined);
     if (kingLocations.length === 0) {
       return { isInCheck: false, checkers: [] };
     }
 
-    const attackers : Piece[] = board
+    const attackers: Piece[] = board
       .getAllPieces(opponent)
       .filter(
         (p) =>
@@ -476,5 +472,4 @@ export class Game implements GameAPI {
     this.switchPlayer();
     this.rollbackMove(move);
   }
-
 }

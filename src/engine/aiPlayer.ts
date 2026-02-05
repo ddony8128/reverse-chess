@@ -1,14 +1,14 @@
 import { Board } from './board';
 import { Game } from './game';
 import {
-    Color,
-    PieceType,
-    reverseColor,
-    difficultyLevel,
-    type DifficultyLevel,
-    type Move,
-    GameEndReason,
-    type EvaluationScore,
+  Color,
+  PieceType,
+  reverseColor,
+  difficultyLevel,
+  type DifficultyLevel,
+  type Move,
+  GameEndReason,
+  type EvaluationScore,
 } from './types';
 import { TranspositionTable, type TranspositionTableEntry } from './transpositionTable';
 
@@ -32,7 +32,6 @@ const MAX_DEPTH_LIMIT_EASY = 6;
 const MAX_DEPTH_LIMIT_HARD = 9;
 const MIN_DEPTH_LIMIT_EASY = 2;
 const MIN_DEPTH_LIMIT_HARD = 3;
-
 
 const POSITIVE_INFINITY = Number.POSITIVE_INFINITY;
 const NEGATIVE_INFINITY = Number.NEGATIVE_INFINITY;
@@ -60,7 +59,8 @@ export class AIPlayer implements AIPlayerAPI {
     if (level === difficultyLevel.Easy) {
       this.timeLimitMs = TIME_LIMIT_MS_EASY;
       this.initialDepth = INITIAL_DEPTH_EASY;
-    } else { // Hard
+    } else {
+      // Hard
       this.timeLimitMs = TIME_LIMIT_MS_HARD;
       this.initialDepth = INITIAL_DEPTH_HARD;
     }
@@ -69,31 +69,29 @@ export class AIPlayer implements AIPlayerAPI {
     this.initTimeChecker();
   }
 
-
   interrupt(): void {
     this.interrupted = true;
   }
 
-
-  private yieldToEventLoop = () => new Promise<void>(resolve => setTimeout(resolve, 1));
+  private yieldToEventLoop = () => new Promise<void>((resolve) => setTimeout(resolve, 1));
 
   private innerIsTimeUp?: () => Promise<boolean>;
 
   private initTimeChecker() {
     let count = 0;
     this.innerIsTimeUp = async () => {
-        count++;
-        if (count >= BATCH_SIZE) {
-            count = 0;
-            await this.yieldToEventLoop();
-            if (this.interrupted) {
-                this.interrupted = false;
-                return true;
-            }
-            return Date.now() >= this.deadlineMs;
+      count++;
+      if (count >= BATCH_SIZE) {
+        count = 0;
+        await this.yieldToEventLoop();
+        if (this.interrupted) {
+          this.interrupted = false;
+          return true;
         }
-        return false;
-    }
+        return Date.now() >= this.deadlineMs;
+      }
+      return false;
+    };
   }
 
   private async isTimeUp(): Promise<boolean> {
@@ -166,68 +164,75 @@ export class AIPlayer implements AIPlayerAPI {
     return warmUp ? undefined : bestMove.move;
   }
 
-
   private async searchBestMove(
     game: Game,
     depth: number,
     alpha: number,
     beta: number,
   ): Promise<ScoredMove> {
-
     if (await this.isTimeUp()) this.timeExceeded = true;
 
-    const currentEntry : TranspositionTableEntry = this.getTTEntry(game);
+    const currentEntry: TranspositionTableEntry = this.getTTEntry(game);
     const currentEntryTrust = currentEntry.depth ?? 0;
-    if (currentEntryTrust >= depth &&
-        currentEntry.bestMove !== undefined &&
-        currentEntry.score !== undefined) {
+    if (
+      currentEntryTrust >= depth &&
+      currentEntry.bestMove !== undefined &&
+      currentEntry.score !== undefined
+    ) {
       const move = currentEntry.bestMove ? this.cloneMove(currentEntry.bestMove) : undefined;
       return { move, score: currentEntry.score, minDepth: currentEntryTrust } as ScoredMove;
     }
-   
+
     if (currentEntry.isEnded) {
-        let endedScoredMove : ScoredMove = { move: undefined, score: 0, minDepth: depth };
-        if (currentEntry.winner === this.rootColor) {
-            endedScoredMove.score = POSITIVE_INFINITY;
-        } else if (currentEntry.winner === reverseColor(this.rootColor)) {
-            endedScoredMove.score = NEGATIVE_INFINITY;
-        } else {
-            endedScoredMove.score = 0;
-        }
-        this.setTTDepthInfo(game, depth, endedScoredMove.score);
-        return endedScoredMove;
+      let endedScoredMove: ScoredMove = { move: undefined, score: 0, minDepth: depth };
+      if (currentEntry.winner === this.rootColor) {
+        endedScoredMove.score = POSITIVE_INFINITY;
+      } else if (currentEntry.winner === reverseColor(this.rootColor)) {
+        endedScoredMove.score = NEGATIVE_INFINITY;
+      } else {
+        endedScoredMove.score = 0;
+      }
+      this.setTTDepthInfo(game, depth, endedScoredMove.score);
+      return endedScoredMove;
     }
 
-    if ( (currentEntry.hasOnlyMove === undefined || currentEntry.hasOnlyMove === false ) && (depth <= 0 || this.timeExceeded)) {
-        if (currentEntryTrust > 0) {
-            return { move: currentEntry.bestMove, score: currentEntry.score ?? 0, minDepth: currentEntryTrust } as ScoredMove;
-        }
-        const leafScoredMove : ScoredMove = { move: undefined, score: this.evaluate(game), minDepth: 0 };
-        this.setTTDepthInfo(game, 0, leafScoredMove.score);
-        return leafScoredMove;
+    if (
+      (currentEntry.hasOnlyMove === undefined || currentEntry.hasOnlyMove === false) &&
+      (depth <= 0 || this.timeExceeded)
+    ) {
+      if (currentEntryTrust > 0) {
+        return {
+          move: currentEntry.bestMove,
+          score: currentEntry.score ?? 0,
+          minDepth: currentEntryTrust,
+        } as ScoredMove;
+      }
+      const leafScoredMove: ScoredMove = {
+        move: undefined,
+        score: this.evaluate(game),
+        minDepth: 0,
+      };
+      this.setTTDepthInfo(game, 0, leafScoredMove.score);
+      return leafScoredMove;
     }
 
     const isMaximizing = game.getCurrentPlayer() === this.rootColor;
-    let nextTopMoves : Move[] = [];
+    let nextTopMoves: Move[] = [];
     let trustDepth = depth;
-    let bestScore : EvaluationScore = isMaximizing ? NEGATIVE_INFINITY : POSITIVE_INFINITY;
+    let bestScore: EvaluationScore = isMaximizing ? NEGATIVE_INFINITY : POSITIVE_INFINITY;
 
-    let onlyTarget : Move[] = []
+    let onlyTarget: Move[] = [];
     if (currentEntry.hasOnlyMove && currentEntry.onlyMove) {
       onlyTarget = [currentEntry.onlyMove];
     }
-    const primarySearchTargets : Move[] = currentEntry.orderedMovesTop ?? currentEntry.legalMoves ?? [];
-    const secondarySearchTargets : Move[] = currentEntry.orderedMovesBottom ?? [];
+    const primarySearchTargets: Move[] =
+      currentEntry.orderedMovesTop ?? currentEntry.legalMoves ?? [];
+    const secondarySearchTargets: Move[] = currentEntry.orderedMovesBottom ?? [];
 
     for (const move of onlyTarget) {
       const nextDepth = depth;
       game.applyMoveForSearch(move);
-      const {score, minDepth} = await this.searchBestMove(
-        game,
-        nextDepth,
-        alpha,
-        beta,
-      );
+      const { score, minDepth } = await this.searchBestMove(game, nextDepth, alpha, beta);
       game.rollbackMoveForSearch();
       bestScore = score;
       trustDepth = minDepth;
@@ -238,12 +243,7 @@ export class AIPlayer implements AIPlayerAPI {
       if (alpha >= beta) break;
       const nextDepth = depth - 1;
       game.applyMoveForSearch(move);
-      const { score, minDepth } = await this.searchBestMove(
-        game,
-        nextDepth,
-        alpha,
-        beta,
-      );
+      const { score, minDepth } = await this.searchBestMove(game, nextDepth, alpha, beta);
       game.rollbackMoveForSearch();
       if (trustDepth > minDepth + 1) trustDepth = Math.floor(minDepth + 1);
       if (isMaximizing) {
@@ -252,7 +252,7 @@ export class AIPlayer implements AIPlayerAPI {
           nextTopMoves = [move];
           alpha = score;
         } else if (score === bestScore) {
-            nextTopMoves.push(move);
+          nextTopMoves.push(move);
         }
       } else {
         if (score < bestScore) {
@@ -260,7 +260,7 @@ export class AIPlayer implements AIPlayerAPI {
           nextTopMoves = [move];
           beta = score;
         } else if (score === bestScore) {
-            nextTopMoves.push(move);
+          nextTopMoves.push(move);
         }
       }
     }
@@ -269,12 +269,7 @@ export class AIPlayer implements AIPlayerAPI {
       if (alpha >= beta) break;
       const nextDepth = depth - 2;
       game.applyMoveForSearch(move);
-      const { score, minDepth } = await this.searchBestMove(
-        game,
-        nextDepth,
-        alpha,
-        beta,
-      );
+      const { score, minDepth } = await this.searchBestMove(game, nextDepth, alpha, beta);
       game.rollbackMoveForSearch();
       if (trustDepth > minDepth + 2) trustDepth = Math.floor(minDepth + 2);
       if (isMaximizing) {
@@ -283,7 +278,7 @@ export class AIPlayer implements AIPlayerAPI {
           nextTopMoves = [move];
           alpha = score;
         } else if (score === bestScore) {
-            nextTopMoves.push(move);
+          nextTopMoves.push(move);
         }
       } else {
         if (score < bestScore) {
@@ -291,33 +286,30 @@ export class AIPlayer implements AIPlayerAPI {
           nextTopMoves = [move];
           beta = score;
         } else if (score === bestScore) {
-            nextTopMoves.push(move);
+          nextTopMoves.push(move);
         }
       }
     }
 
     if (this.timeExceeded) {
-        trustDepth += 0.5;
-        if (currentEntryTrust > trustDepth) {
-            trustDepth = currentEntryTrust;
-            bestScore = currentEntry.score ?? 0;
-            nextTopMoves = currentEntry.bestMove ? [this.cloneMove(currentEntry.bestMove)] : [];
-        } 
+      trustDepth += 0.5;
+      if (currentEntryTrust > trustDepth) {
+        trustDepth = currentEntryTrust;
+        bestScore = currentEntry.score ?? 0;
+        nextTopMoves = currentEntry.bestMove ? [this.cloneMove(currentEntry.bestMove)] : [];
+      }
     }
-    let bestMove : Move | undefined;
+    let bestMove: Move | undefined;
 
     if (nextTopMoves.length === 0) {
-        bestMove = undefined;
+      bestMove = undefined;
     } else if (nextTopMoves.length === 1) {
-        bestMove = nextTopMoves[0];
+      bestMove = nextTopMoves[0];
     } else {
-        bestMove = nextTopMoves[Math.floor(Math.random() * nextTopMoves.length)];
+      bestMove = nextTopMoves[Math.floor(Math.random() * nextTopMoves.length)];
     }
 
-    this.setTTDepthInfo(game,
-        alpha>=beta ? 0.5 : trustDepth,
-        bestScore,
-        bestMove);
+    this.setTTDepthInfo(game, alpha >= beta ? 0.5 : trustDepth, bestScore, bestMove);
 
     return { move: bestMove, score: bestScore, minDepth: trustDepth } as ScoredMove;
   }
@@ -331,18 +323,19 @@ export class AIPlayer implements AIPlayerAPI {
   }
 
   private getTTEntry(game: Game): TranspositionTableEntry {
-    let newEntry : TranspositionTableEntry = {}
+    let newEntry: TranspositionTableEntry = {};
     const currentHash = game.getBoardHash();
-    const entry : TranspositionTableEntry = this.tt.getEntry(currentHash) ?? {};
-    if (entry.legalMoves !== undefined &&
-        entry.orderedMovesTop !== undefined &&
-        entry.orderedMovesBottom !== undefined &&
-        entry.hasOnlyMove !== undefined &&
-        entry.isEnded !== undefined) {
-            this.ttHitCount++;
-            return entry;
-        }
-
+    const entry: TranspositionTableEntry = this.tt.getEntry(currentHash) ?? {};
+    if (
+      entry.legalMoves !== undefined &&
+      entry.orderedMovesTop !== undefined &&
+      entry.orderedMovesBottom !== undefined &&
+      entry.hasOnlyMove !== undefined &&
+      entry.isEnded !== undefined
+    ) {
+      this.ttHitCount++;
+      return entry;
+    }
 
     const currentPlayer = game.getCurrentPlayer();
     const isInCheckmate = game.checkForCheckmate(currentPlayer).isInCheckmate;
@@ -350,30 +343,38 @@ export class AIPlayer implements AIPlayerAPI {
     const isLoneIsland = game.isLoneIsland(currentPlayer);
     const isOnlyKingLeft = game.isOnlyKingLeft(currentPlayer);
     const isEnded = isInCheckmate || isStalemate || isLoneIsland || isOnlyKingLeft;
-    const endReason = isInCheckmate ? GameEndReason.Checkmate : isStalemate ? GameEndReason.Stalemate : isLoneIsland ? GameEndReason.LoneIsland : isOnlyKingLeft ? GameEndReason.OnlyKingLeft : undefined;
+    const endReason = isInCheckmate
+      ? GameEndReason.Checkmate
+      : isStalemate
+        ? GameEndReason.Stalemate
+        : isLoneIsland
+          ? GameEndReason.LoneIsland
+          : isOnlyKingLeft
+            ? GameEndReason.OnlyKingLeft
+            : undefined;
     if (isEnded) {
-        newEntry.isEnded = true;
-        newEntry.endReason = endReason;
-        const winner = isStalemate ? null : currentPlayer;
-        newEntry.winner = winner;
-        newEntry.legalMoves = [];
-        newEntry.orderedMovesTop = [];
-        newEntry.orderedMovesBottom = [];
-        newEntry.hasOnlyMove = false;
-        return newEntry;
+      newEntry.isEnded = true;
+      newEntry.endReason = endReason;
+      const winner = isStalemate ? null : currentPlayer;
+      newEntry.winner = winner;
+      newEntry.legalMoves = [];
+      newEntry.orderedMovesTop = [];
+      newEntry.orderedMovesBottom = [];
+      newEntry.hasOnlyMove = false;
+      return newEntry;
     } else {
-        newEntry.isEnded = false;
+      newEntry.isEnded = false;
     }
 
     const baseLegalMoves = entry.legalMoves ?? game.getLegalMoves(game.getCurrentPlayer());
     newEntry.legalMoves = baseLegalMoves.map((m) => this.cloneMove(m));
     if (newEntry.legalMoves.length === 1) {
-        newEntry.hasOnlyMove = true;
-        newEntry.onlyMove = newEntry.legalMoves[0];
-        newEntry.orderedMovesTop = [];
-        newEntry.orderedMovesBottom = [];
+      newEntry.hasOnlyMove = true;
+      newEntry.onlyMove = newEntry.legalMoves[0];
+      newEntry.orderedMovesTop = [];
+      newEntry.orderedMovesBottom = [];
     } else {
-        newEntry.hasOnlyMove = false;
+      newEntry.hasOnlyMove = false;
     }
 
     const newOrderedMovesTop: Move[] = [];
@@ -383,8 +384,8 @@ export class AIPlayer implements AIPlayerAPI {
     for (const move of newEntry.legalMoves) {
       game.applyMoveForSearch(move);
       const nextHash = game.getBoardHash();
-      const nextEntry : TranspositionTableEntry = this.tt.getEntry(nextHash) ?? {};
-      let nextLegalMoves : Move[] = [];
+      const nextEntry: TranspositionTableEntry = this.tt.getEntry(nextHash) ?? {};
+      let nextLegalMoves: Move[] = [];
       if (nextEntry.legalMoves) {
         nextLegalMoves = nextEntry.legalMoves;
       } else {
@@ -424,13 +425,13 @@ export class AIPlayer implements AIPlayerAPI {
 
   private setTTDepthInfo(game: Game, depth: number, score: EvaluationScore, bestMove?: Move): void {
     const currentHash = game.getBoardHash();
-    const entry : TranspositionTableEntry = this.tt.getEntry(currentHash) ?? {};
+    const entry: TranspositionTableEntry = this.tt.getEntry(currentHash) ?? {};
     if (entry.depth && entry.depth >= depth) return;
     entry.depth = depth;
     entry.score = score;
     entry.bestMove = bestMove ? this.cloneMove(bestMove) : undefined;
     this.tt.updateSearchWindow(currentHash, depth, score, bestMove);
-}
+  }
 
   private evaluate(game: Game): number {
     const board = game.getBoard();

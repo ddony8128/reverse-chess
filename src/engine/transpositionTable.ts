@@ -1,66 +1,75 @@
-import type { ZobristHash } from "@/lib/zobristHash";
-import type { Color, GameEndReason, Move } from "./types";
-import type { EvaluationScore } from "./types";
-
+import type { ZobristHash } from '@/lib/zobristHash';
+import type { Color, GameEndReason, Move } from './types';
+import type { EvaluationScore } from './types';
 
 export type TranspositionTableEntry = {
-    legalMoves? : Move[],
-    orderedMovesTop? : Move[],
-    orderedMovesBottom? : Move[],
-    
-    hasOnlyMove? : boolean,
-    onlyMove? : Move,
+  legalMoves?: Move[];
+  orderedMovesTop?: Move[];
+  orderedMovesBottom?: Move[];
 
-    isEnded? : boolean,
-    endReason? : GameEndReason,
-    winner? : Color | null,
+  hasOnlyMove?: boolean;
+  onlyMove?: Move;
 
-    depth? : number,
-    bestMove? : Move,
-    score?: EvaluationScore;
-}
+  isEnded?: boolean;
+  endReason?: GameEndReason;
+  winner?: Color | null;
+
+  depth?: number;
+  bestMove?: Move;
+  score?: EvaluationScore;
+};
 
 export interface TranspositionTableAPI {
-    getEntry(hash: ZobristHash): TranspositionTableEntry | null;
-    setEntry(hash: ZobristHash, entry: TranspositionTableEntry): void;
-    updateSearchWindow(hash: ZobristHash, depth: number, score: EvaluationScore, bestMove?: Move): void;
-    clear(): void;
+  getEntry(hash: ZobristHash): TranspositionTableEntry | null;
+  setEntry(hash: ZobristHash, entry: TranspositionTableEntry): void;
+  updateSearchWindow(
+    hash: ZobristHash,
+    depth: number,
+    score: EvaluationScore,
+    bestMove?: Move,
+  ): void;
+  clear(): void;
 }
 
 export class TranspositionTable implements TranspositionTableAPI {
-    private entries: Map<ZobristHash, TranspositionTableEntry>;
-    private readonly maxSize: number;
+  private entries: Map<ZobristHash, TranspositionTableEntry>;
+  private readonly maxSize: number;
 
-    constructor(maxSize: number = 300000) {
-        this.maxSize = maxSize;
-        this.entries = new Map();
-    }
+  constructor(maxSize: number = 300000) {
+    this.maxSize = maxSize;
+    this.entries = new Map();
+  }
 
-    getEntry(hash: ZobristHash): TranspositionTableEntry | null {
-        return this.entries.get(hash) ?? null;
-    }
+  getEntry(hash: ZobristHash): TranspositionTableEntry | null {
+    return this.entries.get(hash) ?? null;
+  }
 
-    setEntry(hash: ZobristHash, entry: TranspositionTableEntry): void {
-        if (!this.entries.has(hash) && this.entries.size >= this.maxSize) {
-            const oldestKey = this.entries.keys().next().value as ZobristHash | undefined;
-            if (oldestKey !== undefined) {
-                this.entries.delete(oldestKey);
-            }
-        }
-        this.entries.set(hash, entry);
+  setEntry(hash: ZobristHash, entry: TranspositionTableEntry): void {
+    if (!this.entries.has(hash) && this.entries.size >= this.maxSize) {
+      const oldestKey = this.entries.keys().next().value as ZobristHash | undefined;
+      if (oldestKey !== undefined) {
+        this.entries.delete(oldestKey);
+      }
     }
+    this.entries.set(hash, entry);
+  }
 
-    updateSearchWindow(hash: ZobristHash, depth: number, score: EvaluationScore, bestMove?: Move): void {
-        const prev = this.entries.get(hash) ?? {};
-        this.setEntry(hash, {
-            ...prev,
-            depth,
-            score,
-            bestMove,
-        });
-    }
+  updateSearchWindow(
+    hash: ZobristHash,
+    depth: number,
+    score: EvaluationScore,
+    bestMove?: Move,
+  ): void {
+    const prev = this.entries.get(hash) ?? {};
+    this.setEntry(hash, {
+      ...prev,
+      depth,
+      score,
+      bestMove,
+    });
+  }
 
-    clear(): void {
-        this.entries.clear();
-    }
+  clear(): void {
+    this.entries.clear();
+  }
 }

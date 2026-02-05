@@ -6,7 +6,6 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-
 export const trackEvent = (eventName: EventName, params?: EventParams) => {
-  window.gtag?.("event", eventName, params);
+  window.gtag?.('event', eventName, params);
 };

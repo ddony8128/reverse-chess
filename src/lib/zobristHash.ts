@@ -1,11 +1,5 @@
 import { Board } from '@/engine/board';
-import {
-  Color,
-  PieceType,
-  type Location,
-  fileToIndex,
-  rankToIndex,
-} from '@/engine/types';
+import { Color, PieceType, type Location, fileToIndex, rankToIndex } from '@/engine/types';
 
 const BOARD_SIZE = 64;
 const NUM_PIECE_KINDS = 12;

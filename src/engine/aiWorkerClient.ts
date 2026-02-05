@@ -1,16 +1,17 @@
 import type { Board } from '@/engine/board';
 import { type Color, type Move, type DifficultyLevel } from '@/engine/types';
-import type { ComputeMoveRequest, ComputeMoveResponse, SerializablePiece } from '@/types/workerMessage';
+import type {
+  ComputeMoveRequest,
+  ComputeMoveResponse,
+  SerializablePiece,
+} from '@/types/workerMessage';
 
 export class AIWorkerClient {
   private worker: Worker;
   private nextRequestId = 0;
 
   constructor() {
-    this.worker = new Worker(
-      new URL('./aiWorker.ts', import.meta.url),
-      { type: 'module' },
-    );
+    this.worker = new Worker(new URL('./aiWorker.ts', import.meta.url), { type: 'module' });
   }
 
   private serializeBoard(board: Board): SerializablePiece[] {

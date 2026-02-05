@@ -11,7 +11,12 @@ interface TurnIndicatorProps {
 export function TurnIndicator({ currentTurn, isSinglePlay, isPlayerTurn }: TurnIndicatorProps) {
   const [aiThinking, setAiThinking] = useState(0);
 
-  const thinkingText = ['컴퓨터 생각 중', '컴퓨터 생각 중.', '컴퓨터 생각 중..', '컴퓨터 생각 중...'];
+  const thinkingText = [
+    '컴퓨터 생각 중',
+    '컴퓨터 생각 중.',
+    '컴퓨터 생각 중..',
+    '컴퓨터 생각 중...',
+  ];
 
   useEffect(() => {
     if (isSinglePlay && !isPlayerTurn) {

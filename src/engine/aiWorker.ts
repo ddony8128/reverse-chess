@@ -1,15 +1,14 @@
 /// <reference lib="webworker" />
 
-import {
-  type DifficultyLevel,
-  type Location,
-  type Piece,
-  type Move,
-} from './types';
+import { type DifficultyLevel, type Location, type Piece, type Move } from './types';
 import { createAIPlayer, type AIPlayerAPI } from './aiPlayer';
 import { createEmptyBoard } from './boardUtils';
 import { Board } from './board';
-import type { ComputeMoveRequest, ComputeMoveResponse, SerializablePiece } from '@/types/workerMessage';
+import type {
+  ComputeMoveRequest,
+  ComputeMoveResponse,
+  SerializablePiece,
+} from '@/types/workerMessage';
 
 const ctx: DedicatedWorkerGlobalScope = self as any;
 let LOCK = false;
@@ -53,17 +52,17 @@ ctx.onmessage = async (event: MessageEvent<ComputeMoveRequest>) => {
   while (LOCK) {
     const ai = getOrCreateAI(data.difficulty);
     if (!interrupted) {
-        ai.interrupt();
-        interrupted = true;
+      ai.interrupt();
+      interrupted = true;
     }
-    await new Promise(resolve => setTimeout(resolve, 10));
+    await new Promise((resolve) => setTimeout(resolve, 10));
   }
   LOCK = true;
 
   const board = buildBoard(data.board);
 
   const ai = data.resetAI === true ? createNewAI(data.difficulty) : getOrCreateAI(data.difficulty);
-  const move : Move | undefined = await ai.getNextMove(board, data.color, data.warmUp);
+  const move: Move | undefined = await ai.getNextMove(board, data.color, data.warmUp);
   if (move !== undefined) {
     const response: ComputeMoveResponse = { type: 'move', move: move, requestId: data.requestId };
     ctx.postMessage(response);

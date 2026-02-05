@@ -58,14 +58,13 @@ export function SinglePlayPage() {
     startNewGame();
   }, []);
 
-
   useEffect(() => {
     aiClientRef.current = new AIWorkerClient();
     return () => {
       aiClientRef.current?.dispose();
       aiClientRef.current = null;
     };
-  }, [])
+  }, []);
 
   const startNewGame = () => {
     const newGame = new Game();
@@ -329,51 +328,50 @@ export function SinglePlayPage() {
     <div className="bg-background text-foreground flex min-h-screen flex-col">
       <PageHeader />
       <div className="flex flex-1 flex-col items-center justify-center p-4 md:p-8">
-      <div className="inline-block">
-        {/* Turn indicator + status + restart (centered over board width) */}
-        <div className="mb-6 grid grid-cols-[1fr_auto_1fr] items-center">
-          {/* Left slot */}
-          <div className="min-w-0 justify-self-start">
-            {text ? <CheckIndicator text={text} /> : null}
+        <div className="inline-block">
+          {/* Turn indicator + status + restart (centered over board width) */}
+          <div className="mb-6 grid grid-cols-[1fr_auto_1fr] items-center">
+            {/* Left slot */}
+            <div className="min-w-0 justify-self-start">
+              {text ? <CheckIndicator text={text} /> : null}
+            </div>
+
+            {/* Center slot: 항상 정중앙 */}
+            <div className="justify-self-center">
+              <TurnIndicator
+                currentTurn={currentPlayer}
+                isSinglePlay={true}
+                isPlayerTurn={isPlayerTurn}
+              />
+            </div>
+
+            {/* Right slot */}
+            <div className="min-w-0 justify-self-end">
+              {isEnded ? (
+                <Button
+                  variant="ghost"
+                  onClick={startNewGame}
+                  className="text-muted-foreground hover:text-foreground flex items-center gap-2"
+                >
+                  <RotateCcw className="h-4 w-4" />한 판 더 하기
+                </Button>
+              ) : null}
+            </div>
           </div>
 
-          {/* Center slot: 항상 정중앙 */}
-          <div className="justify-self-center">
-            <TurnIndicator
-              currentTurn={currentPlayer}
-              isSinglePlay={true}
-              isPlayerTurn={isPlayerTurn}
-            />
-          </div>
-
-          {/* Right slot */}
-          <div className="min-w-0 justify-self-end">
-            {isEnded ? (
-              <Button
-                variant="ghost"
-                onClick={startNewGame}
-                className="flex items-center gap-2 text-muted-foreground hover:text-foreground"
-              >
-                <RotateCcw className="h-4 w-4" />
-                한 판 더 하기
-              </Button>
-            ) : null}
-          </div>
-        </div>
-
-        {/* Chess Board - White at bottom (not flipped) */}
-        <ChessBoard
-          board={board ?? new Board()}
-          selectedLocation={selectedLocation}
-          validMoves={validMoves}
-          onSquareClick={handleSquareClick}
-          onPromotion={handlePromotion}
-          promotionTarget={promotionActive}
-          promotionLocation={promotionLocation}
-          promotionOptions={promotionOptionsState}
-          flipped={boardFlipped}
-          disabled={isEnded || !isPlayerTurn}
-        />
+          {/* Chess Board - White at bottom (not flipped) */}
+          <ChessBoard
+            board={board ?? new Board()}
+            selectedLocation={selectedLocation}
+            validMoves={validMoves}
+            onSquareClick={handleSquareClick}
+            onPromotion={handlePromotion}
+            promotionTarget={promotionActive}
+            promotionLocation={promotionLocation}
+            promotionOptions={promotionOptionsState}
+            flipped={boardFlipped}
+            disabled={isEnded || !isPlayerTurn}
+          />
         </div>
 
         {/* Game result modal */}
