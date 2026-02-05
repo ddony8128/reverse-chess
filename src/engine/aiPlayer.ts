@@ -1,5 +1,4 @@
 import { Board } from './board';
-import { cloneBoard } from './boardUtils';
 import { Game } from './game';
 import {
     Color,
@@ -25,7 +24,7 @@ type ScoredMove = {
 };
 
 const TIME_LIMIT_MS_EASY = 1000;
-const TIME_LIMIT_MS_HARD = 5000;
+const TIME_LIMIT_MS_HARD = 10000;
 const INITIAL_DEPTH_EASY = 2;
 const INITIAL_DEPTH_HARD = 3;
 
@@ -113,22 +112,10 @@ export class AIPlayer implements AIPlayerAPI {
     return Math.min(max, Math.max(min, depth));
   }
 
-
-
   async getNextMove(board: Board, color: Color, warmUp: boolean): Promise<Move | undefined> {
-    return this.innerGetNextMove(board, color, warmUp, true);
-  }
-
-  private async innerGetNextMove(
-    board: Board,
-    color: Color,
-    warmUp: boolean,
-    canRetry: boolean,
-  ): Promise<Move | undefined> {
     this.ttHitCount = 0;
 
-    const searchGame = new Game(board, color);
-    const validationGame = new Game(cloneBoard(board), color);
+    const game = new Game(board, color);
 
     this.rootColor = color;
     if (warmUp) {
@@ -144,7 +131,7 @@ export class AIPlayer implements AIPlayerAPI {
     let extraSearchSucceeded = false;
 
     let bestMove: ScoredMove = await this.searchBestMove(
-      searchGame,
+      game,
       currentDepth,
       NEGATIVE_INFINITY,
       POSITIVE_INFINITY,
@@ -158,7 +145,7 @@ export class AIPlayer implements AIPlayerAPI {
       const nextDepth = currentDepth + 1;
 
       const deeperBestMove = await this.searchBestMove(
-        searchGame,
+        game,
         nextDepth,
         NEGATIVE_INFINITY,
         POSITIVE_INFINITY,
@@ -174,29 +161,6 @@ export class AIPlayer implements AIPlayerAPI {
       this.initialDepth = this.clampDepth(this.initialDepth + 1);
     } else if (!warmUp && !baseSearchSucceeded) {
       this.initialDepth = this.clampDepth(this.initialDepth - 1);
-    }
-
-    if (!warmUp && bestMove.move) {
-      const legalMovesAtStart = validationGame.getLegalMoves(validationGame.getCurrentPlayer());
-      const move = bestMove.move;
-      const isLegalOnOriginal = legalMovesAtStart.some((legalMove) => {
-        return (
-          legalMove.from.file === move.from.file &&
-          legalMove.from.rank === move.from.rank &&
-          legalMove.to.file === move.to.file &&
-          legalMove.to.rank === move.to.rank &&
-          (legalMove.promotion ?? null) === (move.promotion ?? null)
-        );
-      });
-
-      if (!isLegalOnOriginal && canRetry) {
-        console.error('[AI] Selected move not legal on original board. Clearing TT and retrying.', {
-          move,
-          color,
-        });
-        this.tt.clear();
-        return this.innerGetNextMove(board, color, warmUp, true);
-      }
     }
 
     return warmUp ? undefined : bestMove.move;

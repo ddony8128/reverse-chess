@@ -27,7 +27,13 @@ export class AIWorkerClient {
     return result;
   }
 
-  async getNextMove(board: Board, color: Color, difficulty: DifficultyLevel, warmUp: boolean): Promise<Move> {
+  async getNextMove(
+    board: Board,
+    color: Color,
+    difficulty: DifficultyLevel,
+    warmUp: boolean,
+    resetAI: boolean = false,
+  ): Promise<Move> {
     const pieces = this.serializeBoard(board);
 
     const requestId = this.nextRequestId++;
@@ -39,6 +45,7 @@ export class AIWorkerClient {
       board: pieces,
       warmUp,
       requestId,
+      resetAI,
     };
 
     return new Promise<Move>((resolve, reject) => {

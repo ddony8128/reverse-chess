@@ -154,8 +154,9 @@ export type ComputeMoveRequest = {
     difficulty: DifficultyLevel;
     color: Color;
     board: SerializablePiece[];
-  warmUp: boolean;
-  requestId: number;
+    warmUp: boolean;
+    requestId: number;
+    resetAI?: boolean;
 }
 
 export type ComputeMoveResponse = {

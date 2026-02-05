@@ -109,37 +109,92 @@ export function SinglePlayPage() {
 
     const requestGeneration = ++aiRequestGenerationRef.current;
 
-    const makeRequest = () => {
+    const makeRequest = (resetAI: boolean, isRetry: boolean) => {
       const client = aiClientRef.current;
       if (!client) return;
 
       const warmUp = false;
+      const timeoutMs = 30000;
 
-      client
-        .getNextMove(board, currentPlayer, resolvedDifficulty, warmUp)
-        .then((move) => {
-          if (requestGeneration !== aiRequestGenerationRef.current) {
-            return;
-          }
-          if (!game || isEnded || currentPlayer !== aiColor) {
-            return;
-          }
+      const fallbackWithRandomMove = () => {
+        if (!game || isEnded || currentPlayer !== aiColor) {
+          return;
+        }
+        const legal = game.getLegalMoves(aiColor);
+        if (legal.length === 0) {
+          return;
+        }
+        const randomMove = legal[Math.floor(Math.random() * legal.length)];
+        try {
+          handleTurnProgress(
+            aiColor,
+            randomMove.from,
+            randomMove.to,
+            randomMove.promotion ?? undefined,
+          );
+        } catch (e) {
+          console.error(e);
+        }
+      };
 
-          handleTurnProgress(aiColor, move.from, move.to, move.promotion ?? undefined);
-        })
-        .catch((error) => {
-          console.error(error);
-          if (requestGeneration !== aiRequestGenerationRef.current) {
-            return;
-          }
-          if (!game || isEnded || currentPlayer !== aiColor) {
-            return;
-          }
-          window.setTimeout(makeRequest, 50);
-        });
+      const handleFailure = (error: unknown) => {
+        console.error(error);
+        if (requestGeneration !== aiRequestGenerationRef.current) {
+          return;
+        }
+        if (!game || isEnded || currentPlayer !== aiColor) {
+          return;
+        }
+        if (!isRetry) {
+          window.setTimeout(() => makeRequest(true, true), 50);
+        } else {
+          fallbackWithRandomMove();
+        }
+      };
+
+      try {
+        const getMoveWithTimeout = () =>
+          new Promise<Move>((resolve, reject) => {
+            const timerId = window.setTimeout(() => {
+              reject(new Error('AI move timeout'));
+            }, timeoutMs);
+
+            client
+              .getNextMove(board, currentPlayer, resolvedDifficulty, warmUp, resetAI)
+              .then((move) => {
+                window.clearTimeout(timerId);
+                resolve(move);
+              })
+              .catch((error) => {
+                window.clearTimeout(timerId);
+                reject(error);
+              });
+          });
+
+        getMoveWithTimeout()
+          .then((move) => {
+            if (requestGeneration !== aiRequestGenerationRef.current) {
+              return;
+            }
+            if (!game || isEnded || currentPlayer !== aiColor) {
+              return;
+            }
+
+            try {
+              handleTurnProgress(aiColor, move.from, move.to, move.promotion ?? undefined);
+            } catch (error) {
+              handleFailure(error);
+            }
+          })
+          .catch((error) => {
+            handleFailure(error);
+          });
+      } catch (error) {
+        handleFailure(error);
+      }
     };
 
-    const timer = window.setTimeout(makeRequest, 10);
+    const timer = window.setTimeout(() => makeRequest(false, false), 10);
 
     return () => {
       window.clearTimeout(timer);
@@ -156,7 +211,7 @@ export function SinglePlayPage() {
     const result = game.progressTurn(color, from, to, promotion);
     if (!result.success) {
       console.error(result.error);
-      return;
+      throw new Error(result.error);
     }
     const nextPlayer = game.getCurrentPlayer();
     setLegalMoves(game.getLegalMoves(nextPlayer));

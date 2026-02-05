@@ -18,11 +18,17 @@ let LOCK = false;
 
 const aiInstances: Partial<Record<DifficultyLevel, AIPlayerAPI>> = {};
 
-function getAI(level: DifficultyLevel): AIPlayerAPI {
-    if (!aiInstances[level]) {
-        aiInstances[level] = createAIPlayer(level);
-    }
-    return aiInstances[level]!;
+function getOrCreateAI(level: DifficultyLevel): AIPlayerAPI {
+  if (!aiInstances[level]) {
+    aiInstances[level] = createAIPlayer(level);
+  }
+  return aiInstances[level]!;
+}
+
+function createNewAI(level: DifficultyLevel): AIPlayerAPI {
+  const ai = createAIPlayer(level);
+  aiInstances[level] = ai;
+  return ai;
 }
 
 function buildBoard(pieces: SerializablePiece[]): Board {
@@ -47,7 +53,7 @@ ctx.onmessage = async (event: MessageEvent<ComputeMoveRequest>) => {
 
   let interrupted = false;
   while (LOCK) {
-    const ai = getAI(data.difficulty);
+    const ai = getOrCreateAI(data.difficulty);
     if (!interrupted) {
         ai.interrupt();
         interrupted = true;
@@ -58,7 +64,7 @@ ctx.onmessage = async (event: MessageEvent<ComputeMoveRequest>) => {
 
   const board = buildBoard(data.board);
 
-  const ai = getAI(data.difficulty);
+  const ai = data.resetAI === true ? createNewAI(data.difficulty) : getOrCreateAI(data.difficulty);
   const move : Move | undefined = await ai.getNextMove(board, data.color, data.warmUp);
   if (move !== undefined) {
     const response: ComputeMoveResponse = { type: 'move', move: move, requestId: data.requestId };
