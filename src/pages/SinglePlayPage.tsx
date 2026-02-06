@@ -456,6 +456,7 @@ export function SinglePlayPage() {
             endReason={endReason ?? null}
             singlePlayerColor={humanColor}
             isTwoPlayer={false}
+            difficulty={resolvedDifficulty === difficultyLevel.Easy ? 'easy' : 'hard'}
             onConfirm={() => setEndModalOpen(false)}
           />
         )}

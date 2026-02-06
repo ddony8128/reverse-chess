@@ -6,6 +6,7 @@ interface GameResultModalProps {
   singlePlayerColor?: Color;
   isTwoPlayer?: boolean;
   endReason: GameEndReason | null;
+  difficulty?: 'easy' | 'hard';
   onConfirm: () => void;
 }
 
@@ -14,6 +15,7 @@ export function GameResultModal({
   singlePlayerColor,
   isTwoPlayer = false,
   endReason,
+  difficulty,
   onConfirm,
 }: GameResultModalProps) {
   const getResultText = () => {
@@ -26,7 +28,7 @@ export function GameResultModal({
     }
 
     if (winner === singlePlayerColor) {
-      return '승리!';
+      return difficulty === 'easy' ? '승리! (쉬움)' : '승리! (어려움)';
     } else {
       return '패배...';
     }
