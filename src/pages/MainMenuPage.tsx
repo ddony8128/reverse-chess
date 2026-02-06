@@ -14,13 +14,21 @@ export function MainMenuPage() {
 
   return (
     <div
-      className="relative flex min-h-dvh flex-col items-center px-6 sm:px-8 pt-24 sm:pt-36 pb-16 sm:pb-24"
+      className="relative flex min-h-dvh flex-col items-center px-6 pt-24 pb-16 sm:px-8 sm:pt-36 sm:pb-24"
       style={{ background: 'var(--gradient-dark)' }}
     >
-      <div className="text-primary pointer-events-none absolute top-[5vh] left-[5vw] text-6xl md:text-8xl opacity-30">♔</div>
-      <div className="text-primary pointer-events-none absolute top-[5vh] right-[5vw] text-6xl md:text-8xl opacity-30">♛</div>
-      <div className="text-primary pointer-events-none absolute bottom-[5vh] left-[5vw] text-6xl md:text-8xl opacity-30">♕</div>
-      <div className="text-primary pointer-events-none absolute bottom-[5vh] right-[5vw] text-6xl md:text-8xl opacity-30">♚</div>
+      <div className="text-primary pointer-events-none absolute top-[5vh] left-[5vw] text-6xl opacity-30 md:text-8xl">
+        ♔
+      </div>
+      <div className="text-primary pointer-events-none absolute top-[5vh] right-[5vw] text-6xl opacity-30 md:text-8xl">
+        ♛
+      </div>
+      <div className="text-primary pointer-events-none absolute bottom-[5vh] left-[5vw] text-6xl opacity-30 md:text-8xl">
+        ♕
+      </div>
+      <div className="text-primary pointer-events-none absolute right-[5vw] bottom-[5vh] text-6xl opacity-30 md:text-8xl">
+        ♚
+      </div>
 
       <div className="mb-16 flex flex-col items-center gap-4 text-center">
         <img
@@ -34,7 +42,7 @@ export function MainMenuPage() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-4 w-[clamp(200px,70vw,320px)]">
+      <div className="flex w-[clamp(200px,70vw,320px)] flex-col gap-4">
         <Button className="btn-menu w-full" onClick={() => navigate('/tutorial')}>
           튜토리얼
         </Button>

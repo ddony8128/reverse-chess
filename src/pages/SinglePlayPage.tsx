@@ -118,26 +118,21 @@ export function SinglePlayPage() {
 
   const isPlayerTurn = currentPlayer === humanColor;
 
-
   useEffect(() => {
     return () => {
       if (!endedSentRef.current && gameIdRef.current) {
-        const duration =
-          gameStartAtRef.current
-            ? Date.now() - gameStartAtRef.current
-            : undefined;
-  
+        const duration = gameStartAtRef.current ? Date.now() - gameStartAtRef.current : undefined;
+
         trackEvent(EventName.GameEnd, {
-          mode: "single",
+          mode: 'single',
           game_id: gameIdRef.current,
           difficulty: resolvedDifficulty === difficultyLevel.Easy ? 'easy' : 'hard',
-          end_reason: "abort",
+          end_reason: 'abort',
           duration_ms: duration,
         } as EventParams);
       }
     };
   }, [isEnded]);
-
 
   useEffect(() => {
     if (!game || !board || !aiPlayer || aiClientRef.current === null) return;
@@ -261,33 +256,31 @@ export function SinglePlayPage() {
     setCaptureForced(game.isCaptureForced());
     setIsInCheck(game.checkForCheck(nextPlayer).isInCheck);
     if (result.end) {
-      
       if (!endedSentRef.current) {
         endedSentRef.current = true;
 
-        const durationMs =
-          gameStartAtRef.current ? Date.now() - gameStartAtRef.current : undefined;
+        const durationMs = gameStartAtRef.current ? Date.now() - gameStartAtRef.current : undefined;
 
         const winnerParam =
           result.winner === Color.White
-            ? "white"
+            ? 'white'
             : result.winner === Color.Black
-              ? "black"
-              : "draw";
+              ? 'black'
+              : 'draw';
 
         const endReasonParam =
           result.endReason === GameEndReason.Checkmate
-            ? "checkmate"
+            ? 'checkmate'
             : result.endReason === GameEndReason.Stalemate
-              ? "stalemate"
+              ? 'stalemate'
               : result.endReason === GameEndReason.LoneIsland
-                ? "lone_island"
+                ? 'lone_island'
                 : result.endReason === GameEndReason.OnlyKingLeft
-                  ? "only_king_left"
+                  ? 'only_king_left'
                   : undefined;
 
         trackEvent(EventName.GameEnd, {
-          mode: "single",
+          mode: 'single',
           game_id: gameIdRef.current ?? undefined,
           color_human: humanColor === Color.White ? 'white' : 'black',
           winner: winnerParam,
@@ -296,7 +289,6 @@ export function SinglePlayPage() {
           difficulty: resolvedDifficulty === difficultyLevel.Easy ? 'easy' : 'hard',
         } as EventParams);
       }
-
 
       setEndReason(result.endReason ?? null);
       setWinner(result.winner ?? null);
@@ -434,7 +426,7 @@ export function SinglePlayPage() {
                     } as EventParams);
                     startNewGame();
                   }}
-                  className="text-sm sm:text-lg text-muted-foreground hover:text-foreground flex items-center gap-2"
+                  className="text-muted-foreground hover:text-foreground flex items-center gap-2 text-sm sm:text-lg"
                 >
                   <RotateCcw className="h-4 w-4" />한 판 더 하기
                 </Button>

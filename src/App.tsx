@@ -7,7 +7,7 @@ import { AnalyticsTracker } from './lib/analyticsTracker';
 
 function App() {
   return (
-    <div className="min-h-dvh bg-background text-foreground">
+    <div className="bg-background text-foreground min-h-dvh">
       <AnalyticsTracker />
       <main className="min-h-dvh">
         <Routes>

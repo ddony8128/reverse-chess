@@ -54,7 +54,7 @@ export function ChessBoard({
   const squareSize = 'clamp(36px,9.5vw,64px)';
   const coordSize = `calc(${squareSize} / 4)`;
   return (
-    <div className="relative rounded-lg p-3 shadow-2xl bg-linear-to-br from-amber-900/80 to-amber-950/80">
+    <div className="relative rounded-lg bg-linear-to-br from-amber-900/80 to-amber-950/80 p-3 shadow-2xl">
       {/* 9x9 grid: (좌측 좌표 1열) + (보드 8열) / (보드 8행) + (아래 좌표 1행) */}
       <div
         className="grid"
@@ -64,7 +64,7 @@ export function ChessBoard({
         }}
       >
         {/* 좌측 랭크 좌표: col 1, row 1~8 */}
-        <div className="col-start-1 col-end-2 row-start-1 row-end-9 flex flex-col justify-between pr-1 text-muted-foreground font-medium">
+        <div className="text-muted-foreground col-start-1 col-end-2 row-start-1 row-end-9 flex flex-col justify-between pr-1 font-medium">
           {displayRanks.map((rank) => (
             <div
               key={rank}
@@ -100,7 +100,9 @@ export function ChessBoard({
                   promotionLocation.file === location.file &&
                   promotionLocation.rank === location.rank;
 
-                const movingPiece = isPromotionSquare ? board.getPieceByLocation(promotionLocation) : null;
+                const movingPiece = isPromotionSquare
+                  ? board.getPieceByLocation(promotionLocation)
+                  : null;
 
                 return (
                   <button
@@ -123,7 +125,7 @@ export function ChessBoard({
                       <span
                         className={cn(
                           // 말 크기도 칸 크기에 맞춰 clamp
-                          'select-none transition-transform text-[clamp(26px,7vw,48px)]',
+                          'text-[clamp(26px,7vw,48px)] transition-transform select-none',
                           piece.color === 'white'
                             ? 'text-[hsl(var(--chess-white-piece))] drop-shadow-[0_2px_2px_rgba(0,0,0,0.5)]'
                             : 'text-[hsl(var(--chess-black-piece))] drop-shadow-[0_1px_1px_rgba(255,255,255,0.3)]',
@@ -142,7 +144,7 @@ export function ChessBoard({
                             role="button"
                             tabIndex={0}
                             className={cn(
-                              'bg-background/95 cursor-pointer items-center justify-center rounded-full shadow flex',
+                              'bg-background/95 flex cursor-pointer items-center justify-center rounded-full shadow',
                               // 프로모션 선택도 칸 크기 따라감
                               'h-[clamp(32px,9vw,48px)] w-[clamp(32px,9vw,48px)] text-[clamp(14px,4vw,18px)]',
                             )}
@@ -164,7 +166,7 @@ export function ChessBoard({
         </div>
 
         {/* 아래 파일 좌표: col 2~9, row 9 */}
-        <div className="col-start-2 col-end-10 row-start-9 row-end-10 flex justify-between pt-1 text-muted-foreground font-medium">
+        <div className="text-muted-foreground col-start-2 col-end-10 row-start-9 row-end-10 flex justify-between pt-1 font-medium">
           {displayFiles.map((file) => (
             <div
               key={file}
@@ -185,4 +187,3 @@ export function ChessBoard({
     </div>
   );
 }
-

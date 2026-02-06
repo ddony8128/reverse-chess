@@ -43,7 +43,6 @@ export function TwoPlayerPage() {
   const gameStartAtRef = useRef<number | null>(null);
   const endedSentRef = useRef<boolean>(false);
 
-
   useEffect(() => {
     startNewGame();
   }, []);
@@ -51,21 +50,17 @@ export function TwoPlayerPage() {
   useEffect(() => {
     return () => {
       if (!endedSentRef.current && gameIdRef.current) {
-        const duration =
-          gameStartAtRef.current
-            ? Date.now() - gameStartAtRef.current
-            : undefined;
-  
+        const duration = gameStartAtRef.current ? Date.now() - gameStartAtRef.current : undefined;
+
         trackEvent(EventName.GameEnd, {
-          mode: "two",
+          mode: 'two',
           game_id: gameIdRef.current,
-          end_reason: "abort",
+          end_reason: 'abort',
           duration_ms: duration,
         });
       }
     };
   }, [isEnded]);
-  
 
   const startNewGame = () => {
     const newGame = new Game();
@@ -116,33 +111,31 @@ export function TwoPlayerPage() {
     setCaptureForced(game.isCaptureForced());
     setIsInCheck(game.checkForCheck(nextPlayer).isInCheck);
     if (result.end) {
-
       if (!endedSentRef.current) {
         endedSentRef.current = true;
 
-        const durationMs =
-          gameStartAtRef.current ? Date.now() - gameStartAtRef.current : undefined;
+        const durationMs = gameStartAtRef.current ? Date.now() - gameStartAtRef.current : undefined;
 
         const winnerParam =
           result.winner === Color.White
-            ? "white"
+            ? 'white'
             : result.winner === Color.Black
-              ? "black"
-              : "draw";
+              ? 'black'
+              : 'draw';
 
         const endReasonParam =
           result.endReason === GameEndReason.Checkmate
-            ? "checkmate"
+            ? 'checkmate'
             : result.endReason === GameEndReason.Stalemate
-              ? "stalemate"
+              ? 'stalemate'
               : result.endReason === GameEndReason.LoneIsland
-                ? "lone_island"
+                ? 'lone_island'
                 : result.endReason === GameEndReason.OnlyKingLeft
-                  ? "only_king_left"
+                  ? 'only_king_left'
                   : undefined;
 
         trackEvent(EventName.GameEnd, {
-          mode: "two",
+          mode: 'two',
           game_id: gameIdRef.current ?? undefined,
           winner: winnerParam,
           end_reason: endReasonParam,
@@ -259,7 +252,7 @@ export function TwoPlayerPage() {
     <div className="bg-background text-foreground flex min-h-screen flex-col">
       <PageHeader />
       <div className="flex flex-1 flex-col items-center justify-center p-4 md:p-8">
-      <div className="grid grid-cols-[max-content]">
+        <div className="grid grid-cols-[max-content]">
           {/* 첫 번째 줄: TurnIndicator 가운데 */}
           <div className="flex justify-center pb-4">
             <TurnIndicator
@@ -283,7 +276,7 @@ export function TwoPlayerPage() {
                     } as EventParams);
                     startNewGame();
                   }}
-                  className="text-sm sm:text-lg text-muted-foreground hover:text-foreground flex items-center gap-2"
+                  className="text-muted-foreground hover:text-foreground flex items-center gap-2 text-sm sm:text-lg"
                 >
                   <RotateCcw className="h-4 w-4" />한 판 더 하기
                 </Button>

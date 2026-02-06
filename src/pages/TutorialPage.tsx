@@ -32,12 +32,10 @@ export function TutorialPage() {
   const steps = useMemo(() => createTutorialSteps(), []);
   const step = steps[currentStep];
 
-
   useEffect(() => {
-    trackEvent(EventName.TutorialStart, {
-    } as EventParams);
+    trackEvent(EventName.TutorialStart, {} as EventParams);
   }, []);
-  
+
   useEffect(() => {
     if (currentStep < steps.length - 1) {
       trackEvent(EventName.TutorialStepView, {
@@ -45,7 +43,7 @@ export function TutorialPage() {
       } as EventParams);
     }
   }, [currentStep, step.title]);
-  
+
   useEffect(() => {
     const clonedBoard = cloneBoard(step.board);
     const newGame = new Game(clonedBoard, Color.Black);
@@ -182,8 +180,7 @@ export function TutorialPage() {
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
     } else {
-      trackEvent(EventName.TutorialComplete, {
-      } as EventParams);
+      trackEvent(EventName.TutorialComplete, {} as EventParams);
       navigate('/');
     }
   };
@@ -224,7 +221,9 @@ export function TutorialPage() {
       <div className="flex flex-1 flex-col items-center justify-center p-4 md:p-8">
         {/* Header */}
         <div className="mb-6 text-center">
-          <h2 className="text-primary mb-2 text-xl sm:text-2xl font-bold md:text-3xl">{step.title}</h2>
+          <h2 className="text-primary mb-2 text-xl font-bold sm:text-2xl md:text-3xl">
+            {step.title}
+          </h2>
           <div className="text-muted-foreground text-sm">
             {currentStep + 1} / {steps.length}
           </div>
@@ -253,8 +252,8 @@ export function TutorialPage() {
         </div>
 
         {/* Description */}
-        <div className="mb-6 sm:mb-8 max-w-md px-3 sm:px-4 text-left">
-          <div className="text-foreground min-h-18 sm:min-h-22 text-left text-sm sm:text-base leading-relaxed">
+        <div className="mb-6 max-w-md px-3 text-left sm:mb-8 sm:px-4">
+          <div className="text-foreground min-h-18 text-left text-sm leading-relaxed sm:min-h-22 sm:text-base">
             {step.description}
           </div>
         </div>

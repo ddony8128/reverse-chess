@@ -133,11 +133,10 @@
     .btn-menu:hover {
       @apply bg-primary text-primary-foreground border-primary shadow-primary/20 shadow-lg;
     }
-    .btn-menu:hover::before { @apply opacity-10;}
+    .btn-menu:hover::before {
+      @apply opacity-10;
+    }
   }
-
-
-
 
   .game-title {
     font-family: 'Cinzel', serif;
@@ -155,7 +154,7 @@
 
   .modal-content {
     @apply bg-card border-border rounded-xl border text-center shadow-2xl;
-    @apply w-[min(80vw,520px)] max-h-[80dvh] overflow-auto p-5 sm:p-8;
+    @apply max-h-[80dvh] w-[min(80vw,520px)] overflow-auto p-5 sm:p-8;
     @apply animate-in fade-in-0 zoom-in-95 duration-200;
   }
 }

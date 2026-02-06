@@ -10,7 +10,13 @@ interface TurnIndicatorProps {
   winner?: Color | null;
 }
 
-export function TurnIndicator({ currentTurn, isSinglePlay, isPlayerTurn, isEnded, winner }: TurnIndicatorProps) {
+export function TurnIndicator({
+  currentTurn,
+  isSinglePlay,
+  isPlayerTurn,
+  isEnded,
+  winner,
+}: TurnIndicatorProps) {
   const [aiThinking, setAiThinking] = useState(0);
 
   const thinkingText = [
@@ -39,13 +45,13 @@ export function TurnIndicator({ currentTurn, isSinglePlay, isPlayerTurn, isEnded
     <div className="bg-card border-border flex items-center justify-center gap-4 rounded-lg border px-6 py-3">
       <div
         className={cn(
-          'h-5 w-5 sm:h-6 sm:w-6 rounded-full border-2',
+          'h-5 w-5 rounded-full border-2 sm:h-6 sm:w-6',
           (isEnded && winner === Color.White) || currentTurn === Color.White
             ? 'border-muted bg-[hsl(var(--chess-white-piece))]'
             : 'border-muted-foreground bg-[hsl(var(--chess-black-piece))]',
         )}
       />
-      <span className="text-sm sm:text-lg font-medium">
+      <span className="text-sm font-medium sm:text-lg">
         {!isEnded && !isSinglePlay && (currentTurn === Color.White ? '백의 차례' : '흑의 차례')}
         {!isEnded && isSinglePlay && (
           <span className="text-muted-foreground ml-2">
