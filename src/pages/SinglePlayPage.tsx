@@ -374,18 +374,10 @@ export function SinglePlayPage() {
 
   const announceText = () => {
     if (isEnded) {
-      switch (endReason) {
-        case GameEndReason.Checkmate:
-          return `체크메이트!`;
-        case GameEndReason.Stalemate:
-          return `스틸메이트!`;
-        case GameEndReason.LoneIsland:
-          return `외딴 섬!`;
-        case GameEndReason.OnlyKingLeft:
-          return `왕만 남음!`;
-        default:
-          return `게임 종료!`;
-      }
+
+      const difficultyText = resolvedDifficulty === difficultyLevel.Easy ? '쉬움' : '어려움';
+      const winText = winner === humanColor ? '승리' : '패배';
+      return `(${difficultyText}) ${winText}!`;
     } else if (isInCheck) {
       return `체크!`;
     } else if (captureForced) {
