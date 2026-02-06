@@ -422,6 +422,8 @@ export function SinglePlayPage() {
                 currentTurn={currentPlayer}
                 isSinglePlay={true}
                 isPlayerTurn={isPlayerTurn}
+                isEnded={isEnded}
+                winner={winner}
               />
             </div>
 
