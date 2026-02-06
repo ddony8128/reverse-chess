@@ -408,27 +408,21 @@ export function SinglePlayPage() {
     <div className="bg-background text-foreground flex min-h-screen flex-col">
       <PageHeader />
       <div className="flex flex-1 flex-col items-center justify-center p-4 md:p-8">
-        <div className="inline-block">
-          {/* Turn indicator + status + restart (centered over board width) */}
-          <div className="mb-6 grid grid-cols-[1fr_auto_1fr] items-center">
-            {/* Left slot */}
-            <div className="min-w-0 justify-self-start">
-              {text ? <CheckIndicator text={text} /> : null}
-            </div>
-
-            {/* Center slot: 항상 정중앙 */}
-            <div className="justify-self-center">
-              <TurnIndicator
-                currentTurn={currentPlayer}
-                isSinglePlay={true}
-                isPlayerTurn={isPlayerTurn}
-                isEnded={isEnded}
-                winner={winner}
-              />
-            </div>
-
-            {/* Right slot */}
-            <div className="min-w-0 justify-self-end">
+        <div className="grid grid-cols-[max-content]">
+          {/* 첫 번째 줄: TurnIndicator 가운데 */}
+          <div className="flex justify-center pb-4">
+            <TurnIndicator
+              currentTurn={currentPlayer}
+              isSinglePlay={true}
+              isPlayerTurn={isPlayerTurn}
+              isEnded={isEnded}
+              winner={winner}
+            />
+          </div>
+          {/* 두 번째 줄: 왼쪽 CheckIndicator, 오른쪽 한 판 더 하기 (빈 상태에서도 높이 고정) */}
+          <div className="mb-6 flex min-h-10 w-full items-center justify-between">
+            <div>{text ? <CheckIndicator text={text} /> : null}</div>
+            <div>
               {isEnded ? (
                 <Button
                   variant="ghost"
@@ -440,7 +434,7 @@ export function SinglePlayPage() {
                     } as EventParams);
                     startNewGame();
                   }}
-                  className="text-muted-foreground hover:text-foreground flex items-center gap-2"
+                  className="text-sm sm:text-lg text-muted-foreground hover:text-foreground flex items-center gap-2"
                 >
                   <RotateCcw className="h-4 w-4" />한 판 더 하기
                 </Button>

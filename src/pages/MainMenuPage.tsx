@@ -14,13 +14,13 @@ export function MainMenuPage() {
 
   return (
     <div
-      className="flex min-h-screen flex-col items-center px-8 pt-36 pb-24"
+      className="relative flex min-h-dvh flex-col items-center px-6 sm:px-8 pt-24 sm:pt-36 pb-16 sm:pb-24"
       style={{ background: 'var(--gradient-dark)' }}
     >
-      <div className="text-primary absolute top-15 left-15 text-6xl opacity-40">♔</div>
-      <div className="text-primary absolute top-15 right-15 text-6xl opacity-40">♛</div>
-      <div className="text-primary absolute bottom-15 left-15 text-6xl opacity-40">♕</div>
-      <div className="text-primary absolute right-15 bottom-15 text-6xl opacity-40">♚</div>
+      <div className="text-primary pointer-events-none absolute top-[5vh] left-[5vw] text-6xl md:text-8xl opacity-30">♔</div>
+      <div className="text-primary pointer-events-none absolute top-[5vh] right-[5vw] text-6xl md:text-8xl opacity-30">♛</div>
+      <div className="text-primary pointer-events-none absolute bottom-[5vh] left-[5vw] text-6xl md:text-8xl opacity-30">♕</div>
+      <div className="text-primary pointer-events-none absolute bottom-[5vh] right-[5vw] text-6xl md:text-8xl opacity-30">♚</div>
 
       <div className="mb-16 flex flex-col items-center gap-4 text-center">
         <img
@@ -34,7 +34,7 @@ export function MainMenuPage() {
         </div>
       </div>
 
-      <div className="flex w-full max-w-xs flex-col gap-4">
+      <div className="flex flex-col gap-4 w-[clamp(200px,70vw,320px)]">
         <Button className="btn-menu w-full" onClick={() => navigate('/tutorial')}>
           튜토리얼
         </Button>
@@ -49,14 +49,14 @@ export function MainMenuPage() {
         {isSingleOpen && (
           <div className="flex flex-col items-center gap-4">
             <Button
-              className="btn-menu w-3/5 items-center"
+              className="btn-menu w-4/5 items-center"
               onClick={() => navigate('/single/easy')}
             >
               쉬움
               <Turtle className="h-5 w-5" />
             </Button>
             <Button
-              className="btn-menu w-3/5 items-center"
+              className="btn-menu w-4/5 items-center"
               onClick={() => navigate('/single/hard')}
             >
               어려움

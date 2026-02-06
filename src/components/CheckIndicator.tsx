@@ -21,7 +21,7 @@ export function CheckIndicator({ text }: CheckIndicatorProps) {
 
             {/* Main badge */}
             <div className="border-primary/80 bg-primary relative rounded-full border-2 px-4 py-1 shadow-lg">
-              <span className="text-primary-foreground text-sm font-semibold tracking-wide drop-shadow-md">
+              <span className="text-primary-foreground text-sm sm:text-lg font-semibold tracking-wide drop-shadow-md">
                 {text}
               </span>
             </div>

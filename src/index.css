@@ -116,22 +116,28 @@
   }
 
   .btn-menu {
-    @apply relative overflow-hidden rounded-lg px-12 py-8 text-2xl font-semibold transition-all duration-300;
+    @apply relative overflow-hidden rounded-lg font-semibold transition-all duration-300;
+    @apply px-6 py-4 text-lg sm:px-10 sm:py-6 sm:text-2xl;
     @apply bg-secondary text-foreground border-border border;
-    @apply hover:bg-primary hover:text-primary-foreground hover:border-primary;
-    @apply hover:shadow-primary/20 hover:shadow-lg;
     @apply active:scale-95;
   }
 
   .btn-menu::before {
     content: '';
+    pointer-events: none;
     @apply absolute inset-0 opacity-0 transition-opacity duration-300;
     background: var(--gradient-gold);
   }
 
-  .btn-menu:hover::before {
-    @apply opacity-10;
+  @media (hover: hover) and (pointer: fine) {
+    .btn-menu:hover {
+      @apply bg-primary text-primary-foreground border-primary shadow-primary/20 shadow-lg;
+    }
+    .btn-menu:hover::before { @apply opacity-10;}
   }
+
+
+
 
   .game-title {
     font-family: 'Cinzel', serif;
@@ -148,7 +154,8 @@
   }
 
   .modal-content {
-    @apply bg-card border-border rounded-xl border p-8 text-center shadow-2xl;
+    @apply bg-card border-border rounded-xl border text-center shadow-2xl;
+    @apply w-[min(80vw,520px)] max-h-[80dvh] overflow-auto p-5 sm:p-8;
     @apply animate-in fade-in-0 zoom-in-95 duration-200;
   }
 }

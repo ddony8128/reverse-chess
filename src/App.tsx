@@ -7,9 +7,9 @@ import { AnalyticsTracker } from './lib/analyticsTracker';
 
 function App() {
   return (
-    <div className="bg-background text-foreground">
+    <div className="min-h-dvh bg-background text-foreground">
       <AnalyticsTracker />
-      <main>
+      <main className="min-h-dvh">
         <Routes>
           <Route path="/" element={<MainMenuPage />} />
           <Route path="/tutorial" element={<TutorialPage />} />

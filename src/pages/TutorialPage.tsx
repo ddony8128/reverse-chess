@@ -224,7 +224,7 @@ export function TutorialPage() {
       <div className="flex flex-1 flex-col items-center justify-center p-4 md:p-8">
         {/* Header */}
         <div className="mb-6 text-center">
-          <h2 className="text-primary mb-2 text-2xl font-bold md:text-3xl">{step.title}</h2>
+          <h2 className="text-primary mb-2 text-xl sm:text-2xl font-bold md:text-3xl">{step.title}</h2>
           <div className="text-muted-foreground text-sm">
             {currentStep + 1} / {steps.length}
           </div>
@@ -253,8 +253,8 @@ export function TutorialPage() {
         </div>
 
         {/* Description */}
-        <div className="mb-8 max-w-md px-4 text-left">
-          <div className="text-foreground min-h-22 text-left text-base leading-relaxed">
+        <div className="mb-6 sm:mb-8 max-w-md px-3 sm:px-4 text-left">
+          <div className="text-foreground min-h-18 sm:min-h-22 text-left text-sm sm:text-base leading-relaxed">
             {step.description}
           </div>
         </div>
