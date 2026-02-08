@@ -31,27 +31,45 @@ export interface TranspositionTableAPI {
   clear(): void;
 }
 
+const EVICT_COUNT = 10000;
+
+type TTWrapper = {
+  entry: TranspositionTableEntry;
+  lastAccess: number;
+};
+
 export class TranspositionTable implements TranspositionTableAPI {
-  private entries: Map<ZobristHash, TranspositionTableEntry>;
+  private entries: Map<ZobristHash, TTWrapper>;
   private readonly maxSize: number;
 
-  constructor(maxSize: number = 300000) {
+  constructor(maxSize: number = 50000) {
     this.maxSize = maxSize;
     this.entries = new Map();
   }
 
   getEntry(hash: ZobristHash): TranspositionTableEntry | null {
-    return this.entries.get(hash) ?? null;
+    const wrapper = this.entries.get(hash);
+    if (!wrapper) return null;
+    wrapper.lastAccess = Date.now();
+    return wrapper.entry;
   }
 
   setEntry(hash: ZobristHash, entry: TranspositionTableEntry): void {
-    if (!this.entries.has(hash) && this.entries.size >= this.maxSize) {
-      const oldestKey = this.entries.keys().next().value as ZobristHash | undefined;
-      if (oldestKey !== undefined) {
-        this.entries.delete(oldestKey);
+    const now = Date.now();
+    if (this.entries.has(hash)) {
+      this.entries.set(hash, { entry, lastAccess: now });
+      return;
+    }
+    if (this.entries.size >= this.maxSize) {
+      const byAge = Array.from(this.entries.entries())
+        .map(([key, w]) => [key, w.lastAccess] as const)
+        .sort((a, b) => a[1] - b[1]);
+      const toDelete = Math.min(EVICT_COUNT, byAge.length);
+      for (let i = 0; i < toDelete; i++) {
+        this.entries.delete(byAge[i]![0]);
       }
     }
-    this.entries.set(hash, entry);
+    this.entries.set(hash, { entry, lastAccess: now });
   }
 
   updateSearchWindow(
@@ -60,7 +78,7 @@ export class TranspositionTable implements TranspositionTableAPI {
     score: EvaluationScore,
     bestMove?: Move,
   ): void {
-    const prev = this.entries.get(hash) ?? {};
+    const prev = this.entries.get(hash)?.entry ?? {};
     this.setEntry(hash, {
       ...prev,
       depth,

@@ -73,6 +73,10 @@ export function SinglePlayPage() {
   }, [resolvedDifficulty]);
 
   const startNewGame = () => {
+    if (aiPlayer) {
+      aiPlayer.clearTranspositionTable();
+    }
+
     const newGame = new Game();
     newGame.startGame();
     setGame(newGame);
@@ -85,8 +89,8 @@ export function SinglePlayPage() {
     setAiColor(nextAiColor);
     setBoardFlipped(!humanPlaysBlack);
 
-    const ai = createAIPlayer(resolvedDifficulty);
-    setAiPlayer(ai);
+    const ai = aiPlayer ?? createAIPlayer(resolvedDifficulty);
+    if (!aiPlayer) setAiPlayer(ai);
 
     setSelectedLocation(null);
     setValidMoves([]);

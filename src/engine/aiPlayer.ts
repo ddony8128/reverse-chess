@@ -15,6 +15,7 @@ import { TranspositionTable, type TranspositionTableEntry } from './transpositio
 export interface AIPlayerAPI {
   getNextMove(board: Board, color: Color, warmUp: boolean): Promise<Move | undefined>;
   interrupt(): void;
+  clearTranspositionTable(): void;
 }
 
 type ScoredMove = {
@@ -71,6 +72,10 @@ export class AIPlayer implements AIPlayerAPI {
 
   interrupt(): void {
     this.interrupted = true;
+  }
+
+  clearTranspositionTable(): void {
+    this.tt.clear();
   }
 
   private yieldToEventLoop = () => new Promise<void>((resolve) => setTimeout(resolve, 1));

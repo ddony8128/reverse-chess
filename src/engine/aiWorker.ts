@@ -22,12 +22,6 @@ function getOrCreateAI(level: DifficultyLevel): AIPlayerAPI {
   return aiInstances[level]!;
 }
 
-function createNewAI(level: DifficultyLevel): AIPlayerAPI {
-  const ai = createAIPlayer(level);
-  aiInstances[level] = ai;
-  return ai;
-}
-
 function buildBoard(pieces: SerializablePiece[]): Board {
   const board = createEmptyBoard();
 
@@ -61,7 +55,10 @@ ctx.onmessage = async (event: MessageEvent<ComputeMoveRequest>) => {
 
   const board = buildBoard(data.board);
 
-  const ai = data.resetAI === true ? createNewAI(data.difficulty) : getOrCreateAI(data.difficulty);
+  const ai = getOrCreateAI(data.difficulty);
+  if (data.resetAI === true) {
+    ai.clearTranspositionTable();
+  }
   const move: Move | undefined = await ai.getNextMove(board, data.color, data.warmUp);
   if (move !== undefined) {
     const response: ComputeMoveResponse = { type: 'move', move: move, requestId: data.requestId };
