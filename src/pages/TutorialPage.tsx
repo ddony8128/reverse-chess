@@ -178,6 +178,7 @@ export function TutorialPage() {
 
   const handleNextStep = () => {
     if (currentStep < steps.length - 1) {
+      setStepCompleted(false);
       setCurrentStep(currentStep + 1);
     } else {
       trackEvent(EventName.TutorialComplete, {} as EventParams);
