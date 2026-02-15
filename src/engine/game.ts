@@ -8,6 +8,8 @@ import {
   locationToKey,
   GameEndReason,
   Rank,
+  fileToIndex,
+  rankToIndex,
   type LocationKey,
 } from './types';
 import type { Move, Piece, Location } from './types';
@@ -226,16 +228,17 @@ export class Game implements GameAPI {
 
     if (cached !== undefined) return cached;
 
-    const { captureMoves, quietMoves } = this.generateCandidateMoves(color);
+    const { forcedCaptureMoves, optionalCaptureMoves, quietMoves } = this.generateCandidateMoves(color);
 
-    if (captureMoves.length > 0) {
-      this.cachedLegalMoves.set(key, captureMoves);
+    if (forcedCaptureMoves.length > 0) {
+      this.cachedLegalMoves.set(key, forcedCaptureMoves);
       this.cachedCaptureForced.set(key, true);
-      return captureMoves;
+      return forcedCaptureMoves;
     }
-    this.cachedLegalMoves.set(key, quietMoves);
+    const allNonForcedMoves = [...optionalCaptureMoves, ...quietMoves];
+    this.cachedLegalMoves.set(key, allNonForcedMoves);
     this.cachedCaptureForced.set(key, false);
-    return quietMoves;
+    return allNonForcedMoves;
   }
 
   isCaptureForced(): boolean {
@@ -243,13 +246,14 @@ export class Game implements GameAPI {
     const cached = this.cachedCaptureForced.get(key);
     if (cached !== undefined) return cached;
 
-    const { captureMoves, quietMoves } = this.generateCandidateMoves(this.currentPlayer);
-    if (captureMoves.length > 0) {
-      this.cachedLegalMoves.set(key, captureMoves);
+    const { forcedCaptureMoves, optionalCaptureMoves, quietMoves } = this.generateCandidateMoves(this.currentPlayer);
+    if (forcedCaptureMoves.length > 0) {
+      this.cachedLegalMoves.set(key, forcedCaptureMoves);
       this.cachedCaptureForced.set(key, true);
       return true;
     }
-    this.cachedLegalMoves.set(key, quietMoves);
+    const allNonForcedMoves = [...optionalCaptureMoves, ...quietMoves];
+    this.cachedLegalMoves.set(key, allNonForcedMoves);
     this.cachedCaptureForced.set(key, false);
     return false;
   }
@@ -283,9 +287,33 @@ export class Game implements GameAPI {
     return [move];
   }
 
-  private generateCandidateMoves(color: Color): { captureMoves: Move[]; quietMoves: Move[] } {
+  private getMoveDistance(from: Location, to: Location): number | null {
+    const fromF = fileToIndex(from.file);
+    const fromR = rankToIndex(from.rank);
+    const toF = fileToIndex(to.file);
+    const toR = rankToIndex(to.rank);
+    if (fromF < 0 || fromR < 0 || toF < 0 || toR < 0) return null;
+    return Math.max(Math.abs(toF - fromF), Math.abs(toR - fromR));
+  }
+
+  private isForcedCaptureMove(move: Move): boolean {
+    if (!move.captured) return false;
+    const pieceType = move.piece?.type;
+    if (pieceType !== PieceType.Queen) return true;
+
+    const distance = this.getMoveDistance(move.from, move.to);
+    if (distance === null) return false;
+    return distance <= 2;
+  }
+
+  private generateCandidateMoves(color: Color): {
+    forcedCaptureMoves: Move[];
+    optionalCaptureMoves: Move[];
+    quietMoves: Move[];
+  } {
     const ownPieces: Piece[] = this.board.getAllPieces(color);
-    const captureMoves: Move[] = [];
+    const forcedCaptureMoves: Move[] = [];
+    const optionalCaptureMoves: Move[] = [];
     const quietMoves: Move[] = [];
 
     for (const piece of ownPieces) {
@@ -295,29 +323,44 @@ export class Game implements GameAPI {
       for (const to of destinations) {
         const move: Move | null = this.makeMove(piece.location, to);
         if (move === null) continue;
-        if (move.captured) {
-          captureMoves.push(move);
-        } else {
+        if (!move.captured) {
           quietMoves.push(move);
+          continue;
+        }
+
+        if (this.isForcedCaptureMove(move)) {
+          forcedCaptureMoves.push(move);
+        } else {
+          optionalCaptureMoves.push(move);
         }
       }
     }
 
-    const promotedCaptureMoves: Move[] = captureMoves.flatMap((move) =>
+    const promotedForcedCaptureMoves: Move[] = forcedCaptureMoves.flatMap((move) =>
+      this.applyPromotionToMove(move),
+    );
+    const promotedOptionalCaptureMoves: Move[] = optionalCaptureMoves.flatMap((move) =>
       this.applyPromotionToMove(move),
     );
     const promotedQuietMoves: Move[] = quietMoves.flatMap((move) =>
       this.applyPromotionToMove(move),
     );
 
-    const filteredCaptureMoves: Move[] = promotedCaptureMoves.filter(
+    const filteredForcedCaptureMoves: Move[] = promotedForcedCaptureMoves.filter(
+      (move) => !this.checkForNextCheck(move, color),
+    );
+    const filteredOptionalCaptureMoves: Move[] = promotedOptionalCaptureMoves.filter(
       (move) => !this.checkForNextCheck(move, color),
     );
     const filteredQuietMoves: Move[] = promotedQuietMoves.filter(
       (move) => !this.checkForNextCheck(move, color),
     );
 
-    return { captureMoves: filteredCaptureMoves, quietMoves: filteredQuietMoves };
+    return {
+      forcedCaptureMoves: filteredForcedCaptureMoves,
+      optionalCaptureMoves: filteredOptionalCaptureMoves,
+      quietMoves: filteredQuietMoves,
+    };
   }
 
   private checkForNextCheck(move: Move, color: Color): boolean {

@@ -37,14 +37,20 @@ export const createTutorialSteps = (): TutorialStep[] => {
     forcedCaptureBoard.movePiece(blackRookH8, { file: 'h', rank: 6 });
   }
 
-  // Step 5: Avoiding check
+  // Step 5: Forced capture (Queen - distance <= 2 only)
+  const forcedCaptureQueenBoard = createEmptyBoard();
+  forcedCaptureQueenBoard.setPiece({ file: 'd', rank: 4 }, { type: 'queen', color: 'black' });
+  forcedCaptureQueenBoard.setPiece({ file: 'f', rank: 6 }, { type: 'pawn', color: 'white' });
+  forcedCaptureQueenBoard.setPiece({ file: 'h', rank: 4 }, { type: 'rook', color: 'white' });
+
+  // Step 6: Avoiding check
   const avoidCheckBoard = createEmptyBoard();
   avoidCheckBoard.setPiece({ file: 'h', rank: 1 }, { type: 'rook', color: 'white' });
   avoidCheckBoard.setPiece({ file: 'h', rank: 8 }, { type: 'king', color: 'black' });
   avoidCheckBoard.setPiece({ file: 'a', rank: 1 }, { type: 'king', color: 'white' });
   avoidCheckBoard.setPiece({ file: 'c', rank: 7 }, { type: 'rook', color: 'black' });
 
-  // Step 6: Good strategy
+  // Step 7: Good strategy
   const goodStrategyBoard = createEmptyBoard();
   goodStrategyBoard.setPiece({ file: 'c', rank: 2 }, { type: 'queen', color: 'white' });
   goodStrategyBoard.setPiece({ file: 'g', rank: 2 }, { type: 'pawn', color: 'white' });
@@ -55,18 +61,18 @@ export const createTutorialSteps = (): TutorialStep[] => {
   goodStrategyBoard.setPiece({ file: 'g', rank: 7 }, { type: 'pawn', color: 'black' });
   goodStrategyBoard.setPiece({ file: 'a', rank: 8 }, { type: 'king', color: 'black' });
 
-  // Step 7: Lone island rule
+  // Step 8: Lone island rule
   const loneIslandBoard = createEmptyBoard();
   loneIslandBoard.setPiece({ file: 'd', rank: 5 }, { type: 'pawn', color: 'black' });
   loneIslandBoard.setPiece({ file: 'd', rank: 3 }, { type: 'pawn', color: 'white' });
   loneIslandBoard.setPiece({ file: 'a', rank: 8 }, { type: 'king', color: 'black' });
   loneIslandBoard.setPiece({ file: 'a', rank: 1 }, { type: 'king', color: 'white' });
 
-  // Step 8: Promotion
+  // Step 9: Promotion
   const promotionBoard = createEmptyBoard();
   promotionBoard.setPiece({ file: 'd', rank: 2 }, { type: 'pawn', color: 'black' });
 
-  // Step 9: Stalemate
+  // Step 10: Stalemate
   const stalemateBoard = createEmptyBoard();
   stalemateBoard.setPiece({ file: 'b', rank: 3 }, { type: 'king', color: 'black' });
   stalemateBoard.setPiece({ file: 'a', rank: 1 }, { type: 'king', color: 'white' });
@@ -74,7 +80,7 @@ export const createTutorialSteps = (): TutorialStep[] => {
   stalemateBoard.setPiece({ file: 'g', rank: 3 }, { type: 'pawn', color: 'white' });
   stalemateBoard.setPiece({ file: 'g', rank: 4 }, { type: 'pawn', color: 'black' });
 
-  // Step 10: Final - free play
+  // Step 11: Final - free play
   const finalBoard = new Board();
 
   return [
@@ -138,6 +144,21 @@ export const createTutorialSteps = (): TutorialStep[] => {
           return !!piece && piece.color === 'black' && piece.type === 'rook';
         },
         message: '다른 수가 없었습니다…',
+      },
+    },
+    {
+      title: '강제 캡쳐 : 퀸 예외',
+      description:
+        '예외로 퀸의 경우, 가로/세로/대각선으로 2칸 이내에서만 강제 캡처가 적용됩니다.\n' +
+        '화이트 폰과 화이틀 룩이 동시에 공격받고 있는 것처럼 보이지만, 강제 캡처 규칙에 의해 폰만 잡을 수 있습니다.',
+      board: forcedCaptureQueenBoard,
+      expected: {
+        check: (board: Board) => {
+          const queenF6 = board.getPieceByLocation({ file: 'f', rank: 6 });
+          const farTargetH4 = board.getPieceByLocation({ file: 'h', rank: 4 });
+          return !!queenF6 && queenF6.color === 'black' && queenF6.type === 'queen' && !!farTargetH4;
+        },
+        message: '이번에도 다른 수가 없었습니다...',
       },
     },
     {
