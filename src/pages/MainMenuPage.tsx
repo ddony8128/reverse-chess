@@ -74,7 +74,7 @@ export function MainMenuPage() {
         )}
 
         <Button className="btn-menu w-full" onClick={() => navigate('/two')}>
-          둘이 하기
+          결투!
         </Button>
       </div>
     </div>

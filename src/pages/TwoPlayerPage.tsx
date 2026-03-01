@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
 import { Board } from '@/engine/board';
 import { Game } from '@/engine/game';
@@ -13,7 +14,7 @@ import {
   locationToKey,
 } from '@/engine/types';
 import { cloneBoard } from '@/engine/boardUtils';
-import { RotateCcw } from 'lucide-react';
+import { RotateCcw, Swords } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import TurnIndicator from '@/components/TurnIndicator';
 import { ChessBoard } from '@/components/ChessBoard';
@@ -21,6 +22,11 @@ import { GameResultModal } from '@/components/GameResultModal';
 import { CheckIndicator } from '@/components/CheckIndicator';
 
 export function TwoPlayerPage() {
+  const navigate = useNavigate();
+  const [duelPhase, setDuelPhase] = useState<'SETUP' | 'PLAY'>('SETUP');
+  const [p1Name, setP1Name] = useState('');
+  const [p2Name, setP2Name] = useState('');
+  const playerNames: [string, string] = [p1Name || '흑', p2Name || '백'];
   const [board, setBoard] = useState<Board | null>(null);
   const [game, setGame] = useState<Game | null>(null);
   const [legalMoves, setLegalMoves] = useState<Move[]>([]);
@@ -248,6 +254,69 @@ export function TwoPlayerPage() {
 
   const text = announceText();
 
+  if (duelPhase === 'SETUP') {
+    const canStart = p1Name.trim() !== '' && p2Name.trim() !== '';
+    return (
+      <div
+        className="flex min-h-dvh flex-col items-center justify-center gap-8 px-5 py-14 sm:px-8 sm:py-20"
+        style={{ background: 'var(--gradient-dark)' }}
+      >
+        <div className="text-center">
+          <Swords className="text-primary mx-auto mb-4 h-14 w-14 sm:h-16 sm:w-16" />
+          <h2 className="text-foreground mb-2 text-[clamp(1.75rem,6vw,2.5rem)] font-bold">
+            결투 신청
+          </h2>
+          <p className="text-muted-foreground text-base sm:text-lg">
+            거꾸로 생각하기 — 리버스 체스
+          </p>
+        </div>
+
+        <div className="flex w-[clamp(260px,80vw,400px)] flex-col gap-5">
+          <div>
+            <label className="text-foreground mb-1 block text-sm font-medium">도전자 (흑, 선공)</label>
+            <input
+              type="text"
+              placeholder="이름 입력"
+              value={p1Name}
+              onChange={(e) => setP1Name(e.target.value)}
+              className="border-border bg-card text-foreground placeholder:text-muted-foreground focus:border-primary w-full rounded-md border px-4 py-3 text-lg outline-none"
+              autoFocus
+            />
+          </div>
+          <div className="text-muted-foreground text-center text-lg">에게 결투 신청</div>
+          <div>
+            <label className="text-foreground mb-1 block text-sm font-medium">상대 (백)</label>
+            <input
+              type="text"
+              placeholder="이름 입력"
+              value={p2Name}
+              onChange={(e) => setP2Name(e.target.value)}
+              className="border-border bg-card text-foreground placeholder:text-muted-foreground focus:border-primary w-full rounded-md border px-4 py-3 text-lg outline-none"
+            />
+          </div>
+        </div>
+
+        <Button
+          className="btn-menu disabled:opacity-40"
+          disabled={!canStart}
+          onClick={() => {
+            setDuelPhase('PLAY');
+            startNewGame();
+          }}
+        >
+          결투 시작
+        </Button>
+        <Button
+          variant="ghost"
+          className="text-muted-foreground"
+          onClick={() => navigate('/')}
+        >
+          돌아가기
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-background text-foreground flex min-h-screen flex-col">
       <PageHeader />
@@ -260,6 +329,7 @@ export function TwoPlayerPage() {
               isSinglePlay={false}
               isEnded={isEnded}
               winner={winner}
+              playerNames={playerNames}
             />
           </div>
           {/* 두 번째 줄: 왼쪽 CheckIndicator, 오른쪽 한 판 더 하기 (빈 상태에서도 높이 고정) */}
@@ -274,7 +344,9 @@ export function TwoPlayerPage() {
                       mode: 'two',
                       prev_game_id: gameIdRef.current ?? undefined,
                     } as EventParams);
-                    startNewGame();
+                    setDuelPhase('SETUP');
+                    setP1Name('');
+                    setP2Name('');
                   }}
                   className="text-muted-foreground hover:text-foreground flex items-center gap-2 text-sm sm:text-lg"
                 >
@@ -305,6 +377,7 @@ export function TwoPlayerPage() {
             winner={winner ?? 'draw'}
             endReason={endReason ?? null}
             isTwoPlayer={true}
+            playerNames={playerNames}
             onConfirm={() => setEndModalOpen(false)}
           />
         )}

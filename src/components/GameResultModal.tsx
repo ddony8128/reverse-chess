@@ -5,6 +5,7 @@ interface GameResultModalProps {
   winner: Color | 'draw' | null;
   singlePlayerColor?: Color;
   isTwoPlayer?: boolean;
+  playerNames?: [string, string];
   endReason: GameEndReason | null;
   difficulty?: 'easy' | 'hard';
   onConfirm: () => void;
@@ -14,6 +15,7 @@ export function GameResultModal({
   winner,
   singlePlayerColor,
   isTwoPlayer = false,
+  playerNames,
   endReason,
   difficulty,
   onConfirm,
@@ -24,7 +26,9 @@ export function GameResultModal({
     }
 
     if (isTwoPlayer) {
-      return winner === 'white' ? '백 승리!' : '흑 승리!';
+      const blackName = playerNames?.[0] ?? '흑';
+      const whiteName = playerNames?.[1] ?? '백';
+      return winner === 'white' ? `${whiteName} 승리!` : `${blackName} 승리!`;
     }
 
     if (winner === singlePlayerColor) {

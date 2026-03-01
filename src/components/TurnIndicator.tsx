@@ -8,6 +8,7 @@ interface TurnIndicatorProps {
   isPlayerTurn?: boolean;
   isEnded?: boolean;
   winner?: Color | null;
+  playerNames?: [string, string];
 }
 
 export function TurnIndicator({
@@ -16,6 +17,7 @@ export function TurnIndicator({
   isPlayerTurn,
   isEnded,
   winner,
+  playerNames,
 }: TurnIndicatorProps) {
   const [aiThinking, setAiThinking] = useState(0);
 
@@ -52,13 +54,17 @@ export function TurnIndicator({
         )}
       />
       <span className="text-sm font-medium sm:text-lg">
-        {!isEnded && !isSinglePlay && (currentTurn === Color.White ? '백의 차례' : '흑의 차례')}
+        {!isEnded && !isSinglePlay && (currentTurn === Color.White
+          ? `${playerNames?.[1] ?? '백'}의 차례`
+          : `${playerNames?.[0] ?? '흑'}의 차례`)}
         {!isEnded && isSinglePlay && (
           <span className="text-muted-foreground ml-2">
             {isPlayerTurn ? '당신의 차례' : thinkingText[aiThinking]}
           </span>
         )}
-        {isEnded && (winner === Color.White ? '백이 승리했습니다.' : '흑이 승리했습니다.')}
+        {isEnded && winner !== null && (winner === Color.White
+          ? `${playerNames?.[1] ?? '백'} 승리!`
+          : `${playerNames?.[0] ?? '흑'} 승리!`)}
         {isEnded && winner === null && '무승부입니다.'}
       </span>
     </div>
