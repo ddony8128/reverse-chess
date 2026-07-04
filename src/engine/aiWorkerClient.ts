@@ -1,10 +1,7 @@
 import type { Board } from '@/engine/board';
 import { type Color, type Move, type DifficultyLevel } from '@/engine/types';
-import type {
-  ComputeMoveRequest,
-  ComputeMoveResponse,
-  SerializablePiece,
-} from '@/types/workerMessage';
+import { serializeBoard } from '@/engine/boardUtils';
+import type { ComputeMoveRequest, ComputeMoveResponse } from '@/types/workerMessage';
 
 export class AIWorkerClient {
   private worker: Worker;
@@ -14,21 +11,6 @@ export class AIWorkerClient {
     this.worker = new Worker(new URL('./aiWorker.ts', import.meta.url), { type: 'module' });
   }
 
-  private serializeBoard(board: Board): SerializablePiece[] {
-    const pieces = board.getAllPieces();
-    const result: SerializablePiece[] = [];
-    for (const p of pieces) {
-      if (!p.location) continue;
-      result.push({
-        color: p.color,
-        type: p.type,
-        file: p.location.file,
-        rank: p.location.rank,
-      });
-    }
-    return result;
-  }
-
   async getNextMove(
     board: Board,
     color: Color,
@@ -36,7 +18,7 @@ export class AIWorkerClient {
     warmUp: boolean,
     resetAI: boolean = false,
   ): Promise<Move> {
-    const pieces = this.serializeBoard(board);
+    const pieces = serializeBoard(board);
 
     const requestId = this.nextRequestId++;
 

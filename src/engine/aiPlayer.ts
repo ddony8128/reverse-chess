@@ -11,6 +11,7 @@ import {
   type EvaluationScore,
 } from './types';
 import { TranspositionTable, type TranspositionTableEntry } from './transpositionTable';
+import { decodeMove, type MoveCode } from './moveCode';
 
 export interface AIPlayerAPI {
   getNextMove(board: Board, color: Color, warmUp: boolean): Promise<Move | undefined>;
@@ -18,8 +19,10 @@ export interface AIPlayerAPI {
   clearTranspositionTable(): void;
 }
 
+// 탐색 내부에서는 무브를 압축 정수(MoveCode)로만 다룬다.
+// 보드에 적용할 때만 decodeMove로 순수 Move({from,to,promotion})를 만들어 쓴다.
 type ScoredMove = {
-  move: Move | undefined;
+  move: MoveCode | undefined;
   score: number;
   minDepth: number;
 };
@@ -93,9 +96,11 @@ export class AIPlayer implements AIPlayerAPI {
           this.interrupted = false;
           return true;
         }
-        return Date.now() >= this.deadlineMs;
       }
-      return false;
+      // 마감 확인은 매 호출 수행한다 (Date.now()는 저렴).
+      // 배치 경계에서만 확인하면 노드 비용이 큰 기기(모바일)에서
+      // 마감을 수 초씩 넘겨 턴이 설정 시간보다 훨씬 길어진다.
+      return Date.now() >= this.deadlineMs;
     };
   }
 
@@ -157,7 +162,8 @@ export class AIPlayer implements AIPlayerAPI {
       if (!this.timeExceeded) extraSearchSucceeded = true;
 
       currentDepth = nextDepth;
-      bestMove = deeperBestMove;
+      // 마감으로 중단된 깊은 탐색이 수를 못 정했다면 얕은 탐색의 결과를 유지한다
+      if (deeperBestMove.move !== undefined) bestMove = deeperBestMove;
     }
 
     if (!warmUp && extraSearchSucceeded) {
@@ -166,7 +172,20 @@ export class AIPlayer implements AIPlayerAPI {
       this.initialDepth = this.clampDepth(this.initialDepth - 1);
     }
 
-    return warmUp ? undefined : bestMove.move;
+    if (warmUp) return undefined;
+    if (bestMove.move !== undefined) return decodeMove(bestMove.move);
+
+    // 마감 직후 중단 등으로 수를 정하지 못한 경우의 방어 폴백.
+    // 종료된 포지션은 기존대로 undefined를 반환한다.
+    const isEndedPosition =
+      game.isOnlyKingLeft(color) ||
+      game.checkForCheckmate(color).isInCheckmate ||
+      game.isStalemate(color) ||
+      game.isLoneIsland(color);
+    if (isEndedPosition) return undefined;
+    const legalCodes = game.getLegalMoveCodes(color);
+    if (legalCodes.length === 0) return undefined;
+    return decodeMove(legalCodes[Math.floor(Math.random() * legalCodes.length)]);
   }
 
   private async searchBestMove(
@@ -177,6 +196,17 @@ export class AIPlayer implements AIPlayerAPI {
   ): Promise<ScoredMove> {
     if (await this.isTimeUp()) this.timeExceeded = true;
 
+    // 마감이 지났으면 자식 확장(getTTEntry의 이동 생성/정렬)을 생략하고 즉시 되돌아간다.
+    // 이 확장이 노드당 가장 비싼 작업이라, 생략하지 않으면 되감기만으로 수 초를 더 쓴다.
+    if (this.timeExceeded) {
+      const existing = this.tt.getEntry(game.getBoardHash());
+      const existingTrust = existing?.depth ?? 0;
+      if (existing && existingTrust > 0 && existing.score !== undefined) {
+        return { move: existing.bestMove, score: existing.score, minDepth: existingTrust };
+      }
+      return { move: undefined, score: this.evaluate(game), minDepth: 0 };
+    }
+
     const currentEntry: TranspositionTableEntry = this.getTTEntry(game);
     const currentEntryTrust = currentEntry.depth ?? 0;
     if (
@@ -184,8 +214,11 @@ export class AIPlayer implements AIPlayerAPI {
       currentEntry.bestMove !== undefined &&
       currentEntry.score !== undefined
     ) {
-      const move = currentEntry.bestMove ? this.cloneMove(currentEntry.bestMove) : undefined;
-      return { move, score: currentEntry.score, minDepth: currentEntryTrust } as ScoredMove;
+      return {
+        move: currentEntry.bestMove,
+        score: currentEntry.score,
+        minDepth: currentEntryTrust,
+      } as ScoredMove;
     }
 
     if (currentEntry.isEnded) {
@@ -222,76 +255,78 @@ export class AIPlayer implements AIPlayerAPI {
     }
 
     const isMaximizing = game.getCurrentPlayer() === this.rootColor;
-    let nextTopMoves: Move[] = [];
+    let nextTopMoves: MoveCode[] = [];
     let trustDepth = depth;
     let bestScore: EvaluationScore = isMaximizing ? NEGATIVE_INFINITY : POSITIVE_INFINITY;
 
-    let onlyTarget: Move[] = [];
-    if (currentEntry.hasOnlyMove && currentEntry.onlyMove) {
+    let onlyTarget: MoveCode[] = [];
+    if (currentEntry.hasOnlyMove && currentEntry.onlyMove !== undefined) {
       onlyTarget = [currentEntry.onlyMove];
     }
-    const primarySearchTargets: Move[] =
+    const primarySearchTargets: MoveCode[] =
       currentEntry.orderedMovesTop ?? currentEntry.legalMoves ?? [];
-    const secondarySearchTargets: Move[] = currentEntry.orderedMovesBottom ?? [];
+    const secondarySearchTargets: MoveCode[] = currentEntry.orderedMovesBottom ?? [];
 
-    for (const move of onlyTarget) {
+    for (const moveCode of onlyTarget) {
       const nextDepth = depth;
-      game.applyMoveForSearch(move);
+      game.applyMoveForSearch(decodeMove(moveCode));
       const { score, minDepth } = await this.searchBestMove(game, nextDepth, alpha, beta);
       game.rollbackMoveForSearch();
       bestScore = score;
       trustDepth = minDepth;
-      nextTopMoves.push(move);
+      nextTopMoves.push(moveCode);
     }
 
-    for (const move of primarySearchTargets) {
+    for (const moveCode of primarySearchTargets) {
       if (alpha >= beta) break;
+      if (this.timeExceeded) break;
       const nextDepth = depth - 1;
-      game.applyMoveForSearch(move);
+      game.applyMoveForSearch(decodeMove(moveCode));
       const { score, minDepth } = await this.searchBestMove(game, nextDepth, alpha, beta);
       game.rollbackMoveForSearch();
       if (trustDepth > minDepth + 1) trustDepth = Math.floor(minDepth + 1);
       if (isMaximizing) {
         if (score > bestScore) {
           bestScore = score;
-          nextTopMoves = [move];
+          nextTopMoves = [moveCode];
           alpha = score;
         } else if (score === bestScore) {
-          nextTopMoves.push(move);
+          nextTopMoves.push(moveCode);
         }
       } else {
         if (score < bestScore) {
           bestScore = score;
-          nextTopMoves = [move];
+          nextTopMoves = [moveCode];
           beta = score;
         } else if (score === bestScore) {
-          nextTopMoves.push(move);
+          nextTopMoves.push(moveCode);
         }
       }
     }
 
-    for (const move of secondarySearchTargets) {
+    for (const moveCode of secondarySearchTargets) {
       if (alpha >= beta) break;
+      if (this.timeExceeded) break;
       const nextDepth = depth - 2;
-      game.applyMoveForSearch(move);
+      game.applyMoveForSearch(decodeMove(moveCode));
       const { score, minDepth } = await this.searchBestMove(game, nextDepth, alpha, beta);
       game.rollbackMoveForSearch();
       if (trustDepth > minDepth + 2) trustDepth = Math.floor(minDepth + 2);
       if (isMaximizing) {
         if (score > bestScore) {
           bestScore = score;
-          nextTopMoves = [move];
+          nextTopMoves = [moveCode];
           alpha = score;
         } else if (score === bestScore) {
-          nextTopMoves.push(move);
+          nextTopMoves.push(moveCode);
         }
       } else {
         if (score < bestScore) {
           bestScore = score;
-          nextTopMoves = [move];
+          nextTopMoves = [moveCode];
           beta = score;
         } else if (score === bestScore) {
-          nextTopMoves.push(move);
+          nextTopMoves.push(moveCode);
         }
       }
     }
@@ -301,10 +336,10 @@ export class AIPlayer implements AIPlayerAPI {
       if (currentEntryTrust > trustDepth) {
         trustDepth = currentEntryTrust;
         bestScore = currentEntry.score ?? 0;
-        nextTopMoves = currentEntry.bestMove ? [this.cloneMove(currentEntry.bestMove)] : [];
+        nextTopMoves = currentEntry.bestMove !== undefined ? [currentEntry.bestMove] : [];
       }
     }
-    let bestMove: Move | undefined;
+    let bestMove: MoveCode | undefined;
 
     if (nextTopMoves.length === 0) {
       bestMove = undefined;
@@ -317,14 +352,6 @@ export class AIPlayer implements AIPlayerAPI {
     this.setTTDepthInfo(game, alpha >= beta ? 0.5 : trustDepth, bestScore, bestMove);
 
     return { move: bestMove, score: bestScore, minDepth: trustDepth } as ScoredMove;
-  }
-
-  private cloneMove(move: Move): Move {
-    return {
-      from: move.from,
-      to: move.to,
-      promotion: move.promotion ?? null,
-    };
   }
 
   private getTTEntry(game: Game): TranspositionTableEntry {
@@ -371,8 +398,8 @@ export class AIPlayer implements AIPlayerAPI {
       newEntry.isEnded = false;
     }
 
-    const baseLegalMoves = entry.legalMoves ?? game.getLegalMoves(game.getCurrentPlayer());
-    newEntry.legalMoves = baseLegalMoves.map((m) => this.cloneMove(m));
+    // MoveCode 배열은 불변으로만 취급하므로 복사 없이 공유해도 안전하다
+    newEntry.legalMoves = entry.legalMoves ?? game.getLegalMoveCodes(game.getCurrentPlayer());
     if (newEntry.legalMoves.length === 1) {
       newEntry.hasOnlyMove = true;
       newEntry.onlyMove = newEntry.legalMoves[0];
@@ -382,19 +409,19 @@ export class AIPlayer implements AIPlayerAPI {
       newEntry.hasOnlyMove = false;
     }
 
-    const newOrderedMovesTop: Move[] = [];
-    const countRecord: Record<number, Move[]> = {};
-    const newOrderedMovesBottom: Move[] = [];
+    const newOrderedMovesTop: MoveCode[] = [];
+    const countRecord: Record<number, MoveCode[]> = {};
+    const newOrderedMovesBottom: MoveCode[] = [];
 
-    for (const move of newEntry.legalMoves) {
-      game.applyMoveForSearch(move);
+    for (const moveCode of newEntry.legalMoves) {
+      game.applyMoveForSearch(decodeMove(moveCode));
       const nextHash = game.getBoardHash();
       const nextEntry: TranspositionTableEntry = this.tt.getEntry(nextHash) ?? {};
-      let nextLegalMoves: Move[] = [];
+      let nextLegalMoves: MoveCode[] = [];
       if (nextEntry.legalMoves) {
         nextLegalMoves = nextEntry.legalMoves;
       } else {
-        nextLegalMoves = game.getLegalMoves(game.getCurrentPlayer());
+        nextLegalMoves = game.getLegalMoveCodes(game.getCurrentPlayer());
         nextEntry.legalMoves = nextLegalMoves;
         this.tt.setEntry(nextHash, nextEntry);
       }
@@ -405,9 +432,9 @@ export class AIPlayer implements AIPlayerAPI {
         if (!countRecord[count]) {
           countRecord[count] = [];
         }
-        countRecord[count].push(move);
+        countRecord[count].push(moveCode);
       } else {
-        newOrderedMovesBottom.push(move);
+        newOrderedMovesBottom.push(moveCode);
       }
       game.rollbackMoveForSearch();
     }
@@ -428,13 +455,18 @@ export class AIPlayer implements AIPlayerAPI {
     return newEntry;
   }
 
-  private setTTDepthInfo(game: Game, depth: number, score: EvaluationScore, bestMove?: Move): void {
+  private setTTDepthInfo(
+    game: Game,
+    depth: number,
+    score: EvaluationScore,
+    bestMove?: MoveCode,
+  ): void {
     const currentHash = game.getBoardHash();
     const entry: TranspositionTableEntry = this.tt.getEntry(currentHash) ?? {};
     if (entry.depth && entry.depth >= depth) return;
     entry.depth = depth;
     entry.score = score;
-    entry.bestMove = bestMove ? this.cloneMove(bestMove) : undefined;
+    entry.bestMove = bestMove;
     this.tt.updateSearchWindow(currentHash, depth, score, bestMove);
   }
 

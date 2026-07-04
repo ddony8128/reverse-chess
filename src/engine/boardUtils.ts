@@ -1,6 +1,7 @@
 import { Board } from './board';
 import { File, Rank, type Piece } from './types';
 import type { Location } from './types';
+import type { SerializablePiece } from '@/types/workerMessage';
 
 export function createEmptyBoard(): Board {
   const board = new Board();
@@ -15,6 +16,36 @@ export function createEmptyBoard(): Board {
     }
   }
 
+  return board;
+}
+
+/** 보드를 기물 목록으로 직렬화. 워커 전송과 localStorage 저장이 같은 포맷을 쓴다. */
+export function serializeBoard(board: Board): SerializablePiece[] {
+  const pieces = board.getAllPieces();
+  const result: SerializablePiece[] = [];
+  for (const p of pieces) {
+    if (!p.location) continue;
+    result.push({
+      color: p.color,
+      type: p.type,
+      file: p.location.file,
+      rank: p.location.rank,
+    });
+  }
+  return result;
+}
+
+/** 기물 목록에서 보드를 재조립. serializeBoard의 역연산. */
+export function buildBoardFromPieces(pieces: SerializablePiece[]): Board {
+  const board = createEmptyBoard();
+  for (const piece of pieces) {
+    const location: Location = { file: piece.file, rank: piece.rank };
+    board.setPiece(location, {
+      color: piece.color,
+      type: piece.type,
+      location,
+    });
+  }
   return board;
 }
 

@@ -1,14 +1,9 @@
 /// <reference lib="webworker" />
 
-import { type DifficultyLevel, type Location, type Piece, type Move } from './types';
+import { type DifficultyLevel, type Move } from './types';
 import { createAIPlayer, type AIPlayerAPI } from './aiPlayer';
-import { createEmptyBoard } from './boardUtils';
-import { Board } from './board';
-import type {
-  ComputeMoveRequest,
-  ComputeMoveResponse,
-  SerializablePiece,
-} from '@/types/workerMessage';
+import { buildBoardFromPieces } from './boardUtils';
+import type { ComputeMoveRequest, ComputeMoveResponse } from '@/types/workerMessage';
 
 const ctx: DedicatedWorkerGlobalScope = self as any;
 let LOCK = false;
@@ -20,22 +15,6 @@ function getOrCreateAI(level: DifficultyLevel): AIPlayerAPI {
     aiInstances[level] = createAIPlayer(level);
   }
   return aiInstances[level]!;
-}
-
-function buildBoard(pieces: SerializablePiece[]): Board {
-  const board = createEmptyBoard();
-
-  for (const piece of pieces) {
-    const location: Location = { file: piece.file, rank: piece.rank };
-    const newPiece: Piece = {
-      color: piece.color,
-      type: piece.type,
-      location,
-    };
-    board.setPiece(location, newPiece);
-  }
-
-  return board;
 }
 
 ctx.onmessage = async (event: MessageEvent<ComputeMoveRequest>) => {
@@ -53,7 +32,7 @@ ctx.onmessage = async (event: MessageEvent<ComputeMoveRequest>) => {
   }
   LOCK = true;
 
-  const board = buildBoard(data.board);
+  const board = buildBoardFromPieces(data.board);
 
   const ai = getOrCreateAI(data.difficulty);
   if (data.resetAI === true) {

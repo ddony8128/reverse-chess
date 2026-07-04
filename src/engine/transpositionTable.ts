@@ -1,21 +1,25 @@
 import type { ZobristHash } from '@/lib/zobristHash';
-import type { Color, GameEndReason, Move } from './types';
+import type { Color, GameEndReason } from './types';
 import type { EvaluationScore } from './types';
+import type { MoveCode } from './moveCode';
 
+// 무브는 압축 정수(MoveCode)로만 저장한다.
+// 게임 전체 동안 유지되는 테이블이므로 Piece/Location 참조를 담으면
+// 지나간 탐색의 보드 객체 그래프가 GC되지 못한다.
 export type TranspositionTableEntry = {
-  legalMoves?: Move[];
-  orderedMovesTop?: Move[];
-  orderedMovesBottom?: Move[];
+  legalMoves?: MoveCode[];
+  orderedMovesTop?: MoveCode[];
+  orderedMovesBottom?: MoveCode[];
 
   hasOnlyMove?: boolean;
-  onlyMove?: Move;
+  onlyMove?: MoveCode;
 
   isEnded?: boolean;
   endReason?: GameEndReason;
   winner?: Color | null;
 
   depth?: number;
-  bestMove?: Move;
+  bestMove?: MoveCode;
   score?: EvaluationScore;
 };
 
@@ -26,7 +30,7 @@ export interface TranspositionTableAPI {
     hash: ZobristHash,
     depth: number,
     score: EvaluationScore,
-    bestMove?: Move,
+    bestMove?: MoveCode,
   ): void;
   clear(): void;
 }
@@ -76,7 +80,7 @@ export class TranspositionTable implements TranspositionTableAPI {
     hash: ZobristHash,
     depth: number,
     score: EvaluationScore,
-    bestMove?: Move,
+    bestMove?: MoveCode,
   ): void {
     const prev = this.entries.get(hash)?.entry ?? {};
     this.setEntry(hash, {

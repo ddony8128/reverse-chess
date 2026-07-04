@@ -6,6 +6,7 @@ import { Game } from '@/engine/game';
 import { AIWorkerClient } from '@/engine/aiWorkerClient';
 import {
   Color,
+  reverseColor,
   type Move,
   type Location,
   PieceType,
@@ -14,7 +15,13 @@ import {
   difficultyLevel,
   type DifficultyLevel,
 } from '@/engine/types';
-import { cloneBoard } from '@/engine/boardUtils';
+import { cloneBoard, buildBoardFromPieces, serializeBoard } from '@/engine/boardUtils';
+import {
+  saveSingleGame,
+  loadSingleGame,
+  clearSingleGame,
+  type SavedSingleGame,
+} from '@/lib/gameStorage';
 import { RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import TurnIndicator from '@/components/TurnIndicator';
@@ -61,7 +68,13 @@ export function SinglePlayPage() {
   const endedSentRef = useRef<boolean>(false);
 
   useEffect(() => {
-    startNewGame();
+    // 새로고침(모바일 강제 리로드 포함) 후에는 저장된 게임을 이어서 진행한다
+    const saved = loadSingleGame(resolvedDifficulty);
+    if (saved) {
+      restoreGame(saved);
+    } else {
+      startNewGame();
+    }
   }, [resolvedDifficulty]);
 
   useEffect(() => {
@@ -118,6 +131,60 @@ export function SinglePlayPage() {
       game_id: newGameId,
       difficulty: resolvedDifficulty === difficultyLevel.Easy ? 'easy' : 'hard',
     } as EventParams);
+
+    // 첫 수를 두기 전에 리로드돼도 이어갈 수 있도록 시작 상태부터 저장
+    persistGame(newGame, nextHumanColor, !humanPlaysBlack);
+  };
+
+  const persistGame = (targetGame: Game, targetHumanColor: Color, targetBoardFlipped: boolean) => {
+    if (!gameIdRef.current || !gameStartAtRef.current) return;
+    saveSingleGame({
+      difficulty: resolvedDifficulty,
+      pieces: serializeBoard(targetGame.getBoard()),
+      currentPlayer: targetGame.getCurrentPlayer(),
+      humanColor: targetHumanColor,
+      boardFlipped: targetBoardFlipped,
+      gameId: gameIdRef.current,
+      gameStartAt: gameStartAtRef.current,
+    });
+  };
+
+  const restoreGame = (saved: SavedSingleGame) => {
+    const restoredBoard = buildBoardFromPieces(saved.pieces);
+    const newGame = new Game(restoredBoard, saved.currentPlayer);
+    newGame.startGame();
+    setGame(newGame);
+    setBoard(newGame.getBoard());
+
+    setHumanColor(saved.humanColor);
+    setAiColor(reverseColor(saved.humanColor));
+    setBoardFlipped(saved.boardFlipped);
+
+    const ai = aiPlayer ?? createAIPlayer(resolvedDifficulty);
+    if (!aiPlayer) setAiPlayer(ai);
+
+    setSelectedLocation(null);
+    setValidMoves([]);
+    const player = newGame.getCurrentPlayer();
+    setLegalMoves(newGame.getLegalMoves(player));
+    setCaptureForced(newGame.isCaptureForced());
+    setIsInCheck(newGame.checkForCheck(player).isInCheck);
+    setCurrentPlayer(player);
+    setPromotionActive(false);
+    setPromotionLocation(null);
+    setPromotionOptionsState(undefined);
+    setIsEnded(false);
+    setEndReason(null);
+    setWinner(null);
+    setEndModalOpen(false);
+
+    // 저장된 게임의 애널리틱스 식별자를 이어받는다 (GameStart 중복 발송 없음)
+    gameIdRef.current = saved.gameId;
+    gameStartAtRef.current = saved.gameStartAt;
+    endedSentRef.current = false;
+
+    // AI 차례 중에 리로드된 경우: currentPlayer === aiColor이므로
+    // 기존 AI 요청 effect가 자동으로 다시 수를 요청한다.
   };
 
   const isPlayerTurn = currentPlayer === humanColor;
@@ -259,6 +326,13 @@ export function SinglePlayPage() {
     setCurrentPlayer(nextPlayer);
     setCaptureForced(game.isCaptureForced());
     setIsInCheck(game.checkForCheck(nextPlayer).isInCheck);
+
+    if (result.end) {
+      clearSingleGame(resolvedDifficulty);
+    } else {
+      persistGame(game, humanColor, boardFlipped);
+    }
+
     if (result.end) {
       if (!endedSentRef.current) {
         endedSentRef.current = true;

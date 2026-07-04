@@ -5,15 +5,21 @@ import {
   PieceType,
   reverseColor,
   GameError,
-  locationToKey,
   GameEndReason,
   Rank,
   fileToIndex,
   rankToIndex,
-  type LocationKey,
 } from './types';
 import type { Move, Piece, Location } from './types';
 import { computeZobristHash, toggleSideToMove, type ZobristHash } from '@/lib/zobristHash';
+import {
+  encodeMove,
+  encodeMoveParts,
+  encodeSquare,
+  decodeMove,
+  decodeSquare,
+  type MoveCode,
+} from './moveCode';
 
 export interface GameAPI {
   getBoard(): Board;
@@ -37,6 +43,7 @@ export interface GameAPI {
   };
 
   getLegalMoves(color: Color): Move[];
+  getLegalMoveCodes(color: Color): MoveCode[];
 
   isCaptureForced(): boolean;
   checkForCheck(color: Color): { isInCheck: boolean; checkers: Piece[] };
@@ -51,6 +58,9 @@ export interface GameAPI {
 }
 
 export class Game implements GameAPI {
+  static readonly MAX_CACHED_POSITIONS = 30000;
+
+  private readonly searchCacheLimit: number;
   private board: Board;
 
   private currentPlayer: Color;
@@ -60,13 +70,16 @@ export class Game implements GameAPI {
   private endReason: GameEndReason | null;
 
   private history: Move[];
-  private cachedLegalMoves: Map<ZobristHash, Move[]>;
+  // 탐색 캐시는 객체 그래프(Move/Piece 참조)가 아닌 압축 정수만 담는다.
+  // 참조가 없으므로 지나간 탐색의 보드 객체를 붙잡아 두지 않는다.
+  private cachedLegalMoveCodes: Map<ZobristHash, MoveCode[]>;
   private cachedCaptureForced: Map<ZobristHash, boolean>;
-  private cachedCheck: Map<ZobristHash, { isInCheck: boolean; checkers: Piece[] }>;
+  private cachedCheck: Map<ZobristHash, { isInCheck: boolean; checkerSquares: number[] }>;
 
   private boardHash: ZobristHash;
 
-  constructor(board?: Board, currentPlayer?: Color) {
+  constructor(board?: Board, currentPlayer?: Color, searchCacheLimit?: number) {
+    this.searchCacheLimit = searchCacheLimit ?? Game.MAX_CACHED_POSITIONS;
     this.board = board ?? new Board();
 
     this.currentPlayer = currentPlayer ?? Color.Black;
@@ -76,7 +89,7 @@ export class Game implements GameAPI {
     this.endReason = null;
 
     this.history = [];
-    this.cachedLegalMoves = new Map();
+    this.cachedLegalMoveCodes = new Map();
     this.cachedCaptureForced = new Map();
     this.cachedCheck = new Map();
 
@@ -147,16 +160,14 @@ export class Game implements GameAPI {
       return { success, end, winner, error, endReason };
     }
 
-    const fromKey: LocationKey = locationToKey(from);
-    const toKey: LocationKey = locationToKey(to);
-    const legalMoves: Move[] = this.getLegalMoves(color);
-    const move: Move | undefined = legalMoves.find(
-      (m) =>
-        locationToKey(m.from) === fromKey &&
-        locationToKey(m.to) === toKey &&
-        m.promotion === realPromotion,
-    );
-    if (move === undefined) {
+    const wantedCode = encodeMoveParts(from, to, realPromotion);
+    const legalCodes = this.getLegalMoveCodes(color);
+    if (!legalCodes.includes(wantedCode)) {
+      error = GameError.InvalidMove;
+      return { success, end, winner, error, endReason };
+    }
+    const move: Move | null = this.makeMove(from, to, realPromotion ?? undefined);
+    if (move === null) {
       error = GameError.InvalidMove;
       return { success, end, winner, error, endReason };
     }
@@ -221,24 +232,57 @@ export class Game implements GameAPI {
     this.state = GameState.Finished;
   }
 
-  getLegalMoves(color: Color): Move[] {
+  getLegalMoveCodes(color: Color): MoveCode[] {
     const isCurrentPlayer = color === this.currentPlayer;
     const key = isCurrentPlayer ? this.boardHash : toggleSideToMove(this.boardHash);
-    const cached = this.cachedLegalMoves.get(key);
+    const cached = this.cachedLegalMoveCodes.get(key);
 
     if (cached !== undefined) return cached;
 
     const { forcedCaptureMoves, optionalCaptureMoves, quietMoves } = this.generateCandidateMoves(color);
 
     if (forcedCaptureMoves.length > 0) {
-      this.cachedLegalMoves.set(key, forcedCaptureMoves);
-      this.cachedCaptureForced.set(key, true);
-      return forcedCaptureMoves;
+      const codes = forcedCaptureMoves.map(encodeMove);
+      this.setLegalMoveCache(key, codes, true);
+      return codes;
     }
-    const allNonForcedMoves = [...optionalCaptureMoves, ...quietMoves];
-    this.cachedLegalMoves.set(key, allNonForcedMoves);
-    this.cachedCaptureForced.set(key, false);
-    return allNonForcedMoves;
+    const codes = [...optionalCaptureMoves, ...quietMoves].map(encodeMove);
+    this.setLegalMoveCache(key, codes, false);
+    return codes;
+  }
+
+  getLegalMoves(color: Color): Move[] {
+    return this.getLegalMoveCodes(color).map((code) => this.decodeToRichMove(code));
+  }
+
+  /** 압축 코드를 UI/외부용 Move로 복원. piece/captured는 현재 보드에서 되찾는다. */
+  private decodeToRichMove(code: MoveCode): Move {
+    const move = decodeMove(code);
+    move.piece = this.board.getPieceByLocation(move.from) ?? undefined;
+    move.captured = this.board.getPieceByLocation(move.to);
+    return move;
+  }
+
+  private setLegalMoveCache(key: ZobristHash, codes: MoveCode[], captureForced: boolean): void {
+    this.prepareSearchCacheSlot();
+    this.cachedLegalMoveCodes.set(key, codes);
+    this.cachedCaptureForced.set(key, captureForced);
+  }
+
+  /**
+   * 탐색 캐시 상한. 캐시는 성능 최적화일 뿐이므로 가득 차면 전부 비워도 결과는 동일하다.
+   * 하드 모드 장시간 탐색에서 캐시가 무한히 자라 모바일 OOM을 일으키는 것을 막는다.
+   */
+  private prepareSearchCacheSlot(): void {
+    if (this.cachedLegalMoveCodes.size < this.searchCacheLimit) return;
+    this.cachedLegalMoveCodes.clear();
+    this.cachedCaptureForced.clear();
+    this.cachedCheck.clear();
+  }
+
+  /** 탐색 캐시에 담긴 포지션 수 (진단/테스트용). */
+  getSearchCacheSize(): number {
+    return this.cachedLegalMoveCodes.size;
   }
 
   isCaptureForced(): boolean {
@@ -246,28 +290,34 @@ export class Game implements GameAPI {
     const cached = this.cachedCaptureForced.get(key);
     if (cached !== undefined) return cached;
 
-    const { forcedCaptureMoves, optionalCaptureMoves, quietMoves } = this.generateCandidateMoves(this.currentPlayer);
-    if (forcedCaptureMoves.length > 0) {
-      this.cachedLegalMoves.set(key, forcedCaptureMoves);
-      this.cachedCaptureForced.set(key, true);
-      return true;
-    }
-    const allNonForcedMoves = [...optionalCaptureMoves, ...quietMoves];
-    this.cachedLegalMoves.set(key, allNonForcedMoves);
-    this.cachedCaptureForced.set(key, false);
-    return false;
+    this.getLegalMoveCodes(this.currentPlayer);
+    return this.cachedCaptureForced.get(key) ?? false;
   }
 
   checkForCheck(color: Color): { isInCheck: boolean; checkers: Piece[] } {
     const isCurrentPlayer: boolean = color === this.currentPlayer;
     const key: ZobristHash = isCurrentPlayer ? this.boardHash : toggleSideToMove(this.boardHash);
 
-    const cached: { isInCheck: boolean; checkers: Piece[] } | undefined = this.cachedCheck.get(key);
-    if (cached !== undefined) return cached;
+    const cached = this.cachedCheck.get(key);
+    if (cached !== undefined) {
+      return {
+        isInCheck: cached.isInCheck,
+        checkers: cached.checkerSquares
+          .map((square) => this.board.getPieceByLocation(decodeSquare(square)))
+          .filter((piece): piece is Piece => piece !== null),
+      };
+    }
 
     const result = this.checkForCheckByBoard(this.board, color);
 
-    this.cachedCheck.set(key, result);
+    // 캐시에는 기물 참조 대신 칸 번호만 저장한다
+    this.prepareSearchCacheSlot();
+    this.cachedCheck.set(key, {
+      isInCheck: result.isInCheck,
+      checkerSquares: result.checkers
+        .filter((piece) => piece.location !== undefined)
+        .map((piece) => encodeSquare(piece.location!)),
+    });
 
     return result;
   }
@@ -403,17 +453,17 @@ export class Game implements GameAPI {
     checkers: Piece[];
   } {
     const { isInCheck, checkers } = this.checkForCheck(color);
-    const legalMoves = this.getLegalMoves(color);
+    const legalMoveCount = this.getLegalMoveCodes(color).length;
     return {
-      isInCheckmate: isInCheck && legalMoves.length === 0,
+      isInCheckmate: isInCheck && legalMoveCount === 0,
       checkers,
     };
   }
 
   isStalemate(color: Color): boolean {
     const { isInCheck } = this.checkForCheck(color);
-    const legalMoves = this.getLegalMoves(color);
-    return !isInCheck && legalMoves.length === 0;
+    const legalMoveCount = this.getLegalMoveCodes(color).length;
+    return !isInCheck && legalMoveCount === 0;
   }
 
   isLoneIsland(color: Color): boolean {
@@ -421,16 +471,17 @@ export class Game implements GameAPI {
     if (isInCheck) {
       return false;
     }
-    const legalMoves = this.getLegalMoves(color);
-    if (legalMoves.length === 0) {
+    const legalCodes = this.getLegalMoveCodes(color);
+    if (legalCodes.length === 0) {
       return false;
     }
 
-    const kingMovesWithoutCapture = legalMoves
-      .filter((move) => move.piece?.type === PieceType.King)
-      .filter((move) => move.captured === undefined || move.captured === null);
-
-    return kingMovesWithoutCapture.length === legalMoves.length;
+    return legalCodes.every((code) => {
+      const move = decodeMove(code);
+      const piece = this.board.getPieceByLocation(move.from);
+      const captured = this.board.getPieceByLocation(move.to);
+      return piece?.type === PieceType.King && captured === null;
+    });
   }
 
   isOnlyKingLeft(color: Color): boolean {
