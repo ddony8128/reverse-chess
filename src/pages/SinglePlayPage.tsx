@@ -452,7 +452,6 @@ export function SinglePlayPage() {
 
   const announceText = () => {
     if (isEnded) {
-
       const difficultyText = resolvedDifficulty === difficultyLevel.Easy ? '쉬움' : '어려움';
       const winText = winner === humanColor ? '승리' : '패배';
       return `(${difficultyText}) ${winText}!`;

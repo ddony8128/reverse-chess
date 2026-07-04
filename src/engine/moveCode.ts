@@ -60,11 +60,7 @@ export function encodeMoveParts(
   to: Location,
   promotion: PieceType | null | undefined,
 ): MoveCode {
-  return (
-    encodeSquare(from) |
-    (encodeSquare(to) << 6) |
-    (promotionToIndex(promotion) << 12)
-  );
+  return encodeSquare(from) | (encodeSquare(to) << 6) | (promotionToIndex(promotion) << 12);
 }
 
 export function encodeMove(move: Move): MoveCode {

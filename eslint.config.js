@@ -21,6 +21,15 @@ export default defineConfig([
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.browser,
+      parserOptions: {
+        // typed rule(no-unsafe-argument, no-floating-promises 등)에 필요한 타입 정보 제공
+        projectService: {
+          // tsconfig에 포함되지 않는 루트 설정 파일들은 기본 프로젝트로 린트
+          // (vite.config.ts는 tsconfig.node.json에 포함되므로 제외)
+          allowDefaultProject: ['vitest.config.ts', 'tailwind.config.ts'],
+        },
+        tsconfigRootDir: import.meta.dirname,
+      },
     },
     plugins: {
       react,
@@ -47,6 +56,11 @@ export default defineConfig([
         },
       ],
       'react-hooks/exhaustive-deps': 'warn',
+      // react-hooks v7의 컴파일러 계열 진단은 기존 페이지 초기화 패턴 전반을 error로 잡으므로
+      // 전면 리팩터링 전까지 warn으로 유지
+      'react-hooks/immutability': 'warn',
+      'react-hooks/purity': 'warn',
+      'react-hooks/set-state-in-effect': 'warn',
       'react/react-in-jsx-scope': 'off',
       '@tanstack/query/exhaustive-deps': 'warn',
       '@typescript-eslint/no-unsafe-argument': 'warn',

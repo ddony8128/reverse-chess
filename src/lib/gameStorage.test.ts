@@ -4,7 +4,12 @@ import { buildBoardFromPieces, serializeBoard } from '@/engine/boardUtils';
 import { Color, PieceType, difficultyLevel } from '@/engine/types';
 import { boardSnapshot, loc, moveKeys } from '@/engine/testHelpers';
 import { computeZobristHash } from './zobristHash';
-import { saveSingleGame, loadSingleGame, clearSingleGame, type SavedSingleGame } from './gameStorage';
+import {
+  saveSingleGame,
+  loadSingleGame,
+  clearSingleGame,
+  type SavedSingleGame,
+} from './gameStorage';
 
 function createMemoryStorage(): Storage {
   const map = new Map<string, string>();

@@ -26,9 +26,7 @@ describe('moveCode 인코딩/디코딩', () => {
                 (decoded.promotion ?? null) !== promotion
               ) {
                 // 실패 지점을 알 수 있게 명시적으로 비교
-                expect(moveKey(decoded)).toBe(
-                  moveKey({ from, to, promotion: promotion ?? null }),
-                );
+                expect(moveKey(decoded)).toBe(moveKey({ from, to, promotion: promotion ?? null }));
               }
             }
           }
@@ -38,11 +36,7 @@ describe('moveCode 인코딩/디코딩', () => {
   });
 
   it('코드는 16비트 미만의 음이 아닌 정수', () => {
-    const code = encodeMoveParts(
-      { file: 'h', rank: 8 },
-      { file: 'h', rank: 8 },
-      PieceType.Knight,
-    );
+    const code = encodeMoveParts({ file: 'h', rank: 8 }, { file: 'h', rank: 8 }, PieceType.Knight);
     expect(code).toBeLessThan(1 << 15);
     expect(code).toBeGreaterThanOrEqual(0);
     expect(Number.isInteger(code)).toBe(true);

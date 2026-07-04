@@ -47,7 +47,7 @@ function createPieceTable(): ZobristHash[][] {
 }
 
 function getPieceKindIndex(color: Color, type: PieceType): PieceKindIndex {
-  let colorIndex = color === Color.White ? 0 : 1;
+  const colorIndex = color === Color.White ? 0 : 1;
   let typeIndex: number;
   switch (type) {
     case PieceType.Pawn:

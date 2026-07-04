@@ -156,7 +156,9 @@ export const createTutorialSteps = (): TutorialStep[] => {
         check: (board: Board) => {
           const queenF6 = board.getPieceByLocation({ file: 'f', rank: 6 });
           const farTargetH4 = board.getPieceByLocation({ file: 'h', rank: 4 });
-          return !!queenF6 && queenF6.color === 'black' && queenF6.type === 'queen' && !!farTargetH4;
+          return (
+            !!queenF6 && queenF6.color === 'black' && queenF6.type === 'queen' && !!farTargetH4
+          );
         },
         message: '이번에도 다른 수가 없었습니다...',
       },

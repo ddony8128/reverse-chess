@@ -172,23 +172,19 @@ describe('AIPlayer (easy)', () => {
     AI_TIMEOUT,
   );
 
-  it(
-    'AI가 두는 수는 몇 수를 이어가도 매번 progressTurn을 통과한다 (AI vs AI 4수)',
-    async () => {
-      const game = new Game();
-      game.startGame();
-      const ai = createAIPlayer(difficultyLevel.Easy);
+  it('AI가 두는 수는 몇 수를 이어가도 매번 progressTurn을 통과한다 (AI vs AI 4수)', async () => {
+    const game = new Game();
+    game.startGame();
+    const ai = createAIPlayer(difficultyLevel.Easy);
 
-      for (let ply = 0; ply < 4; ply++) {
-        const color = game.getCurrentPlayer();
-        const move = await ai.getNextMove(game.getBoard(), color, false);
-        expect(move).toBeDefined();
+    for (let ply = 0; ply < 4; ply++) {
+      const color = game.getCurrentPlayer();
+      const move = await ai.getNextMove(game.getBoard(), color, false);
+      expect(move).toBeDefined();
 
-        const result = game.progressTurn(color, move!.from, move!.to, move!.promotion ?? undefined);
-        expect(result.success).toBe(true);
-        if (result.end) break;
-      }
-    },
-    60000,
-  );
+      const result = game.progressTurn(color, move!.from, move!.to, move!.promotion ?? undefined);
+      expect(result.success).toBe(true);
+      if (result.end) break;
+    }
+  }, 60000);
 });

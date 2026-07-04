@@ -141,7 +141,7 @@ export class Game implements GameAPI {
     let winner: Color | null = null;
     let error: GameError | undefined;
     let endReason: GameEndReason | undefined;
-    let realPromotion: PieceType | null = promotion ?? null;
+    const realPromotion: PieceType | null = promotion ?? null;
 
     const opponent: Color = reverseColor(color);
 
@@ -239,7 +239,8 @@ export class Game implements GameAPI {
 
     if (cached !== undefined) return cached;
 
-    const { forcedCaptureMoves, optionalCaptureMoves, quietMoves } = this.generateCandidateMoves(color);
+    const { forcedCaptureMoves, optionalCaptureMoves, quietMoves } =
+      this.generateCandidateMoves(color);
 
     if (forcedCaptureMoves.length > 0) {
       const codes = forcedCaptureMoves.map(encodeMove);

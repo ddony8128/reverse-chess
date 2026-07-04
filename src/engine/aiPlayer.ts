@@ -222,7 +222,7 @@ export class AIPlayer implements AIPlayerAPI {
     }
 
     if (currentEntry.isEnded) {
-      let endedScoredMove: ScoredMove = { move: undefined, score: 0, minDepth: depth };
+      const endedScoredMove: ScoredMove = { move: undefined, score: 0, minDepth: depth };
       if (currentEntry.winner === this.rootColor) {
         endedScoredMove.score = POSITIVE_INFINITY;
       } else if (currentEntry.winner === reverseColor(this.rootColor)) {
@@ -355,7 +355,7 @@ export class AIPlayer implements AIPlayerAPI {
   }
 
   private getTTEntry(game: Game): TranspositionTableEntry {
-    let newEntry: TranspositionTableEntry = {};
+    const newEntry: TranspositionTableEntry = {};
     const currentHash = game.getBoardHash();
     const entry: TranspositionTableEntry = this.tt.getEntry(currentHash) ?? {};
     if (
