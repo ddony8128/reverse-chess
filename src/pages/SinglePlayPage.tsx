@@ -62,6 +62,8 @@ export function SinglePlayPage() {
 
   const aiClientRef = useRef<AIWorkerClient | null>(null);
   const aiRequestGenerationRef = useRef(0);
+  // 새 게임 시작 시 워커 쪽 AI의 TT를 비우도록 다음 요청에 resetAI를 실어 보낸다
+  const aiResetPendingRef = useRef(false);
 
   const gameIdRef = useRef<string | null>(null);
   const gameStartAtRef = useRef<number | null>(null);
@@ -86,9 +88,9 @@ export function SinglePlayPage() {
   }, [resolvedDifficulty]);
 
   const startNewGame = () => {
-    if (aiPlayer) {
-      aiPlayer.clearTranspositionTable();
-    }
+    // 실제 탐색은 워커의 AI 인스턴스가 하므로 리셋 플래그를 워커로 전달한다
+    // (이전에는 탐색에 쓰이지 않는 메인 스레드 인스턴스만 비우고 있었다)
+    aiResetPendingRef.current = true;
 
     const newGame = new Game();
     newGame.startGame();
@@ -216,6 +218,9 @@ export function SinglePlayPage() {
       const client = aiClientRef.current;
       if (!client) return;
 
+      const shouldResetAI = resetAI || aiResetPendingRef.current;
+      aiResetPendingRef.current = false;
+
       const warmUp = false;
       const timeoutMs = 30000;
 
@@ -268,7 +273,7 @@ export function SinglePlayPage() {
             }, timeoutMs);
 
             client
-              .getNextMove(board, currentPlayer, resolvedDifficulty, warmUp, resetAI)
+              .getNextMove(board, currentPlayer, resolvedDifficulty, warmUp, shouldResetAI)
               .then((move) => {
                 window.clearTimeout(timerId);
                 resolve(move);
