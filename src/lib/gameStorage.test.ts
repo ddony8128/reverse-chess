@@ -8,7 +8,11 @@ import {
   saveSingleGame,
   loadSingleGame,
   clearSingleGame,
+  saveTwoPlayerGame,
+  loadTwoPlayerGame,
+  clearTwoPlayerGame,
   type SavedSingleGame,
+  type SavedTwoPlayerGame,
 } from './gameStorage';
 
 function createMemoryStorage(): Storage {
@@ -160,5 +164,110 @@ describe('gameStorage 저장/복원', () => {
       throw new Error('QuotaExceededError');
     };
     expect(() => saveSingleGame(midGameState(), storage)).not.toThrow();
+  });
+});
+
+function midTwoPlayerState(): Omit<SavedTwoPlayerGame, 'version' | 'savedAt'> {
+  const game = new Game();
+  game.startGame();
+  game.progressTurn(Color.Black, loc('g', 7), loc('g', 5));
+  game.progressTurn(Color.White, loc('d', 2), loc('d', 4));
+
+  return {
+    pieces: serializeBoard(game.getBoard()),
+    currentPlayer: game.getCurrentPlayer(),
+    gameId: 'two-player-game-id',
+    gameStartAt: 1700000000000,
+  };
+}
+
+describe('gameStorage 2인 플레이 저장/복원', () => {
+  it('저장 → 복원 왕복: 보드/차례/메타데이터가 보존된다', () => {
+    const storage = createMemoryStorage();
+    const state = midTwoPlayerState();
+    saveTwoPlayerGame(state, storage);
+
+    const loaded = loadTwoPlayerGame(storage);
+    expect(loaded).not.toBeNull();
+    expect(loaded!.currentPlayer).toBe(state.currentPlayer);
+    expect(loaded!.gameId).toBe('two-player-game-id');
+    expect(loaded!.gameStartAt).toBe(1700000000000);
+
+    const originalBoard = buildBoardFromPieces(state.pieces);
+    const restoredBoard = buildBoardFromPieces(loaded!.pieces);
+    expect(boardSnapshot(restoredBoard)).toBe(boardSnapshot(originalBoard));
+    expect(computeZobristHash(restoredBoard, loaded!.currentPlayer)).toBe(
+      computeZobristHash(originalBoard, state.currentPlayer),
+    );
+
+    const restoredGame = new Game(restoredBoard, loaded!.currentPlayer);
+    restoredGame.startGame();
+    const originalGame = new Game(originalBoard, state.currentPlayer);
+    originalGame.startGame();
+    expect(moveKeys(restoredGame.getLegalMoves(loaded!.currentPlayer))).toEqual(
+      moveKeys(originalGame.getLegalMoves(state.currentPlayer)),
+    );
+  });
+
+  it('싱글플레이 저장과 키가 분리되어 서로 간섭하지 않는다', () => {
+    const storage = createMemoryStorage();
+    saveSingleGame(midGameState(), storage);
+    expect(loadTwoPlayerGame(storage)).toBeNull();
+
+    saveTwoPlayerGame(midTwoPlayerState(), storage);
+    expect(loadSingleGame(difficultyLevel.Easy, storage)).not.toBeNull();
+    expect(loadTwoPlayerGame(storage)).not.toBeNull();
+
+    clearTwoPlayerGame(storage);
+    expect(loadTwoPlayerGame(storage)).toBeNull();
+    expect(loadSingleGame(difficultyLevel.Easy, storage)).not.toBeNull();
+  });
+
+  it('저장이 없으면 null', () => {
+    expect(loadTwoPlayerGame(createMemoryStorage())).toBeNull();
+  });
+
+  it('손상된 JSON은 null을 반환하고 엔트리를 지운다', () => {
+    const storage = createMemoryStorage();
+    storage.setItem('reverse-chess:saved-game:two', '{broken');
+    expect(loadTwoPlayerGame(storage)).toBeNull();
+    expect(storage.getItem('reverse-chess:saved-game:two')).toBeNull();
+  });
+
+  it('버전이 다르면 무효 처리한다', () => {
+    const storage = createMemoryStorage();
+    saveTwoPlayerGame(midTwoPlayerState(), storage);
+    const raw = JSON.parse(storage.getItem('reverse-chess:saved-game:two')!);
+    raw.version = 999;
+    storage.setItem('reverse-chess:saved-game:two', JSON.stringify(raw));
+    expect(loadTwoPlayerGame(storage)).toBeNull();
+  });
+
+  it('킹이 없는 포지션은 무효 처리한다', () => {
+    const storage = createMemoryStorage();
+    const state = midTwoPlayerState();
+    state.pieces = state.pieces.filter(
+      (p) => !(p.color === Color.Black && p.type === PieceType.King),
+    );
+    saveTwoPlayerGame(state, storage);
+    expect(loadTwoPlayerGame(storage)).toBeNull();
+  });
+
+  it('이미 끝난 포지션(킹만 남음)은 무효 처리한다', () => {
+    const storage = createMemoryStorage();
+    const state = midTwoPlayerState();
+    state.pieces = [
+      { color: Color.White, type: PieceType.King, file: 'a', rank: 1 },
+      { color: Color.Black, type: PieceType.King, file: 'h', rank: 8 },
+    ];
+    state.currentPlayer = Color.White;
+    saveTwoPlayerGame(state, storage);
+    expect(loadTwoPlayerGame(storage)).toBeNull();
+  });
+
+  it('storage가 null이면 조용히 무시된다', () => {
+    expect(() => saveTwoPlayerGame(midTwoPlayerState(), null)).not.toThrow();
+    expect(loadTwoPlayerGame(null)).toBeNull();
+    expect(() => clearTwoPlayerGame(null)).not.toThrow();
   });
 });

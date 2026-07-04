@@ -12,7 +12,13 @@ import {
   GameEndReason,
   locationToKey,
 } from '@/engine/types';
-import { cloneBoard } from '@/engine/boardUtils';
+import { cloneBoard, buildBoardFromPieces, serializeBoard } from '@/engine/boardUtils';
+import {
+  saveTwoPlayerGame,
+  loadTwoPlayerGame,
+  clearTwoPlayerGame,
+  type SavedTwoPlayerGame,
+} from '@/lib/gameStorage';
 import { RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import TurnIndicator from '@/components/TurnIndicator';
@@ -44,7 +50,13 @@ export function TwoPlayerPage() {
   const endedSentRef = useRef<boolean>(false);
 
   useEffect(() => {
-    startNewGame();
+    // 새로고침(모바일 강제 리로드 포함) 후에는 저장된 게임을 이어서 진행한다
+    const saved = loadTwoPlayerGame();
+    if (saved) {
+      restoreGame(saved);
+    } else {
+      startNewGame();
+    }
   }, []);
 
   useEffect(() => {
@@ -91,6 +103,47 @@ export function TwoPlayerPage() {
       mode: 'two',
       game_id: newGameId,
     } as EventParams);
+
+    // 첫 수를 두기 전에 리로드돼도 이어갈 수 있도록 시작 상태부터 저장
+    persistGame(newGame);
+  };
+
+  const persistGame = (targetGame: Game) => {
+    if (!gameIdRef.current || !gameStartAtRef.current) return;
+    saveTwoPlayerGame({
+      pieces: serializeBoard(targetGame.getBoard()),
+      currentPlayer: targetGame.getCurrentPlayer(),
+      gameId: gameIdRef.current,
+      gameStartAt: gameStartAtRef.current,
+    });
+  };
+
+  const restoreGame = (saved: SavedTwoPlayerGame) => {
+    const restoredBoard = buildBoardFromPieces(saved.pieces);
+    const newGame = new Game(restoredBoard, saved.currentPlayer);
+    newGame.startGame();
+    setGame(newGame);
+    setBoard(newGame.getBoard());
+
+    setSelectedLocation(null);
+    setValidMoves([]);
+    const player = newGame.getCurrentPlayer();
+    setLegalMoves(newGame.getLegalMoves(player));
+    setCurrentPlayer(player);
+    setCaptureForced(newGame.isCaptureForced());
+    setIsInCheck(newGame.checkForCheck(player).isInCheck);
+    setPromotionActive(false);
+    setPromotionLocation(null);
+    setPromotionOptionsState(undefined);
+    setIsEnded(false);
+    setEndReason(null);
+    setWinner(null);
+    setEndModalOpen(false);
+
+    // 저장된 게임의 애널리틱스 식별자를 이어받는다 (GameStart 중복 발송 없음)
+    gameIdRef.current = saved.gameId;
+    gameStartAtRef.current = saved.gameStartAt;
+    endedSentRef.current = false;
   };
 
   const handleTurnProgress = (
@@ -110,6 +163,13 @@ export function TwoPlayerPage() {
     setCurrentPlayer(nextPlayer);
     setCaptureForced(game.isCaptureForced());
     setIsInCheck(game.checkForCheck(nextPlayer).isInCheck);
+
+    if (result.end) {
+      clearTwoPlayerGame();
+    } else {
+      persistGame(game);
+    }
+
     if (result.end) {
       if (!endedSentRef.current) {
         endedSentRef.current = true;
