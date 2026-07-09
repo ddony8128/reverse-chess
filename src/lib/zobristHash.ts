@@ -3,6 +3,8 @@ import { Color, PieceType, type Location, fileToIndex, rankToIndex } from '@/eng
 
 const BOARD_SIZE = 64;
 const NUM_PIECE_KINDS = 12;
+// 고정 시드로 결정론 생성. 이 값이나 아래 테이블 생성 로직을 바꾸면 해시 공간이 달라지므로,
+// 해시를 문자열로 저장하는 gameStorage의 STORAGE_VERSION도 반드시 함께 올려야 한다.
 const SEED_VALUE = 0x12345678;
 
 export type ZobristHash = bigint;

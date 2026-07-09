@@ -1,4 +1,4 @@
-import { Game } from '@/engine/game';
+import { Game, FIFTY_MOVE_LIMIT_PLIES, type RuleState } from '@/engine/game';
 import { buildBoardFromPieces } from '@/engine/boardUtils';
 import {
   Color,
@@ -15,8 +15,12 @@ import type { SerializablePiece } from '@/types/workerMessage';
  *
  * 모바일 브라우저(특히 iOS Safari)는 메모리 압박 시 탭을 강제 리로드하므로,
  * 매 수마다 게임 상태를 저장해 두고 리로드 후 이어서 플레이할 수 있게 한다.
- * 엔진은 매 수마다 (기물 배치 + 차례)만으로 동작하므로 이 두 가지면 복원에 충분하다.
- * (캐슬링/앙파상/반복수 규칙이 없어 히스토리가 필요 없음)
+ *
+ * 무승부 규칙(3회 동형·50수)이 경로 의존적이므로 (기물 배치 + 차례)만으로는
+ * 복원이 부족하다. halfmoveClock과 반복 카운트를 함께 저장한다.
+ * 반복 카운트의 키는 Zobrist 해시(bigint)를 문자열로 직렬화한 것이다.
+ * (zobristHash.ts의 시드/테이블 생성 로직을 바꾸면 저장된 해시가 어긋나므로
+ *  STORAGE_VERSION을 반드시 함께 올릴 것)
  */
 export type SavedSingleGame = {
   version: number;
@@ -25,6 +29,8 @@ export type SavedSingleGame = {
   currentPlayer: Color;
   humanColor: Color;
   boardFlipped: boolean;
+  halfmoveClock: number;
+  repetitionCounts: [string, number][];
   gameId: string;
   gameStartAt: number;
   savedAt: number;
@@ -34,12 +40,15 @@ export type SavedTwoPlayerGame = {
   version: number;
   pieces: SerializablePiece[];
   currentPlayer: Color;
+  halfmoveClock: number;
+  repetitionCounts: [string, number][];
   gameId: string;
   gameStartAt: number;
   savedAt: number;
 };
 
-const STORAGE_VERSION = 1;
+// v1 → v2: halfmoveClock / repetitionCounts 추가. v1 저장본은 버전 검증에서 폐기된다.
+const STORAGE_VERSION = 2;
 
 const VALID_COLORS = new Set<string>(Object.values(Color));
 const VALID_TYPES = new Set<string>(Object.values(PieceType));
@@ -106,7 +115,21 @@ function isValidPiece(value: unknown): value is SerializablePiece {
   );
 }
 
-/** 두 모드가 공유하는 필드(version/pieces/currentPlayer/gameId/gameStartAt) 검증. */
+/** 반복 카운트 엔트리([해시 문자열, 횟수]) 하나의 유효성 검증. */
+function isValidRepetitionEntry(value: unknown): value is [string, number] {
+  if (!Array.isArray(value) || value.length !== 2) return false;
+  const [hash, count] = value;
+  if (typeof hash !== 'string') return false;
+  try {
+    BigInt(hash);
+  } catch {
+    return false;
+  }
+  // 이미 3회면 무승부로 끝났어야 하므로 재개 대상이 아니다
+  return typeof count === 'number' && Number.isInteger(count) && count >= 1 && count <= 2;
+}
+
+/** 두 모드가 공유하는 필드 검증. */
 function hasValidCommonFields(saved: Record<string, unknown>): boolean {
   return (
     saved.version === STORAGE_VERSION &&
@@ -116,9 +139,27 @@ function hasValidCommonFields(saved: Record<string, unknown>): boolean {
     saved.pieces.every(isValidPiece) &&
     typeof saved.currentPlayer === 'string' &&
     VALID_COLORS.has(saved.currentPlayer) &&
+    typeof saved.halfmoveClock === 'number' &&
+    Number.isInteger(saved.halfmoveClock) &&
+    saved.halfmoveClock >= 0 &&
+    // 이미 50수 무승부면 재개 대상이 아니다
+    saved.halfmoveClock < FIFTY_MOVE_LIMIT_PLIES &&
+    Array.isArray(saved.repetitionCounts) &&
+    saved.repetitionCounts.every(isValidRepetitionEntry) &&
     typeof saved.gameId === 'string' &&
     typeof saved.gameStartAt === 'number'
   );
+}
+
+/** 저장된 규칙 상태를 엔진용 RuleState로 복원. */
+function toRuleState(saved: {
+  halfmoveClock: number;
+  repetitionCounts: [string, number][];
+}): RuleState {
+  return {
+    halfmoveClock: saved.halfmoveClock,
+    repetitionCounts: saved.repetitionCounts.map(([hash, count]) => [BigInt(hash), count] as const),
+  };
 }
 
 function isStructurallyValid(value: unknown): value is SavedSingleGame {
@@ -142,7 +183,11 @@ function isStructurallyValidTwoPlayer(value: unknown): value is SavedTwoPlayerGa
  * 재개 가능한 포지션인지 엔진으로 확인한다:
  * 색상별 킹 정확히 1개, 중복 칸 없음, 게임이 이미 끝난 상태가 아닐 것.
  */
-function isResumablePosition(pieces: SerializablePiece[], currentPlayer: Color): boolean {
+function isResumablePosition(
+  pieces: SerializablePiece[],
+  currentPlayer: Color,
+  ruleState: RuleState,
+): boolean {
   const board = buildBoardFromPieces(pieces);
 
   // setPiece가 중복 칸을 덮어쓰므로 개수 불일치로 중복을 감지할 수 있다
@@ -152,12 +197,14 @@ function isResumablePosition(pieces: SerializablePiece[], currentPlayer: Color):
     if (board.getAllPiecesByPieceKey(`${color}_${PieceType.King}`).length !== 1) return false;
   }
 
-  const game = new Game(board, currentPlayer);
+  const game = new Game(board, currentPlayer, undefined, ruleState);
   const isEnded =
     game.isOnlyKingLeft(currentPlayer) ||
     game.checkForCheckmate(currentPlayer).isInCheckmate ||
     game.isStalemate(currentPlayer) ||
-    game.isLoneIsland(currentPlayer);
+    game.isLoneIsland(currentPlayer) ||
+    game.isThreefoldRepetition() ||
+    game.isFiftyMoveDraw();
   return !isEnded;
 }
 
@@ -180,7 +227,7 @@ export function loadSingleGame(
       storage.removeItem(key);
       return null;
     }
-    if (!isResumablePosition(parsed.pieces, parsed.currentPlayer)) {
+    if (!isResumablePosition(parsed.pieces, parsed.currentPlayer, toRuleState(parsed))) {
       storage.removeItem(key);
       return null;
     }
@@ -236,7 +283,7 @@ export function loadTwoPlayerGame(
     const parsed: unknown = JSON.parse(raw);
     if (
       !isStructurallyValidTwoPlayer(parsed) ||
-      !isResumablePosition(parsed.pieces, parsed.currentPlayer)
+      !isResumablePosition(parsed.pieces, parsed.currentPlayer, toRuleState(parsed))
     ) {
       storage.removeItem(TWO_PLAYER_STORAGE_KEY);
       return null;

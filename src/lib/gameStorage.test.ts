@@ -41,6 +41,8 @@ function midGameState(): Omit<SavedSingleGame, 'version' | 'savedAt'> {
     currentPlayer: game.getCurrentPlayer(),
     humanColor: Color.Black,
     boardFlipped: false,
+    halfmoveClock: game.getHalfmoveClock(),
+    repetitionCounts: game.getRepetitionCounts().map(([hash, count]) => [hash.toString(), count]),
     gameId: 'test-game-id',
     gameStartAt: 1700000000000,
   };
@@ -152,6 +154,43 @@ describe('gameStorage 저장/복원', () => {
     expect(loadSingleGame(difficultyLevel.Easy, storage)).toBeNull();
   });
 
+  it('halfmoveClock과 반복 카운트가 저장 → 복원 왕복된다', () => {
+    const storage = createMemoryStorage();
+    const state = midGameState();
+    state.halfmoveClock = 42;
+    state.repetitionCounts = [['12345678901234567890', 2]];
+    saveSingleGame(state, storage);
+
+    const loaded = loadSingleGame(difficultyLevel.Easy, storage);
+    expect(loaded).not.toBeNull();
+    expect(loaded!.halfmoveClock).toBe(42);
+    expect(loaded!.repetitionCounts).toEqual([['12345678901234567890', 2]]);
+  });
+
+  it('클럭이 이미 100 이상(50수 무승부)인 저장본은 무효 처리한다', () => {
+    const storage = createMemoryStorage();
+    const state = midGameState();
+    state.halfmoveClock = 100;
+    saveSingleGame(state, storage);
+    expect(loadSingleGame(difficultyLevel.Easy, storage)).toBeNull();
+  });
+
+  it('반복 카운트가 3 이상(이미 무승부)인 저장본은 무효 처리한다', () => {
+    const storage = createMemoryStorage();
+    const state = midGameState();
+    state.repetitionCounts = [['123', 3]];
+    saveSingleGame(state, storage);
+    expect(loadSingleGame(difficultyLevel.Easy, storage)).toBeNull();
+  });
+
+  it('반복 카운트 해시가 BigInt로 파싱 불가능하면 무효 처리한다', () => {
+    const storage = createMemoryStorage();
+    const state = midGameState();
+    state.repetitionCounts = [['not-a-hash', 1]];
+    saveSingleGame(state, storage);
+    expect(loadSingleGame(difficultyLevel.Easy, storage)).toBeNull();
+  });
+
   it('storage가 null이면 조용히 무시된다 (SSR/접근 불가 환경)', () => {
     expect(() => saveSingleGame(midGameState(), null)).not.toThrow();
     expect(loadSingleGame(difficultyLevel.Easy, null)).toBeNull();
@@ -176,6 +215,8 @@ function midTwoPlayerState(): Omit<SavedTwoPlayerGame, 'version' | 'savedAt'> {
   return {
     pieces: serializeBoard(game.getBoard()),
     currentPlayer: game.getCurrentPlayer(),
+    halfmoveClock: game.getHalfmoveClock(),
+    repetitionCounts: game.getRepetitionCounts().map(([hash, count]) => [hash.toString(), count]),
     gameId: 'two-player-game-id',
     gameStartAt: 1700000000000,
   };

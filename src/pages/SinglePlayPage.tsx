@@ -29,7 +29,8 @@ import { ChessBoard } from '@/components/ChessBoard';
 import { GameResultModal } from '@/components/GameResultModal';
 import { CheckIndicator } from '@/components/CheckIndicator';
 import { createAIPlayer, type AIPlayerAPI } from '@/engine/aiPlayer';
-import { EventName, type EventParams } from '@/types/analyticsEvent';
+import { EventName, endReasonToAnalyticsParam, type EventParams } from '@/types/analyticsEvent';
+import { endReasonShortLabel } from '@/lib/gameText';
 import { trackEvent } from '@/lib/utils';
 
 export function SinglePlayPage() {
@@ -146,6 +147,10 @@ export function SinglePlayPage() {
       currentPlayer: targetGame.getCurrentPlayer(),
       humanColor: targetHumanColor,
       boardFlipped: targetBoardFlipped,
+      halfmoveClock: targetGame.getHalfmoveClock(),
+      repetitionCounts: targetGame
+        .getRepetitionCounts()
+        .map(([hash, count]) => [hash.toString(), count]),
       gameId: gameIdRef.current,
       gameStartAt: gameStartAtRef.current,
     });
@@ -153,7 +158,10 @@ export function SinglePlayPage() {
 
   const restoreGame = (saved: SavedSingleGame) => {
     const restoredBoard = buildBoardFromPieces(saved.pieces);
-    const newGame = new Game(restoredBoard, saved.currentPlayer);
+    const newGame = new Game(restoredBoard, saved.currentPlayer, undefined, {
+      halfmoveClock: saved.halfmoveClock,
+      repetitionCounts: saved.repetitionCounts.map(([hash, count]) => [BigInt(hash), count]),
+    });
     newGame.startGame();
     setGame(newGame);
     setBoard(newGame.getBoard());
@@ -351,16 +359,7 @@ export function SinglePlayPage() {
               ? 'black'
               : 'draw';
 
-        const endReasonParam =
-          result.endReason === GameEndReason.Checkmate
-            ? 'checkmate'
-            : result.endReason === GameEndReason.Stalemate
-              ? 'stalemate'
-              : result.endReason === GameEndReason.LoneIsland
-                ? 'lone_island'
-                : result.endReason === GameEndReason.OnlyKingLeft
-                  ? 'only_king_left'
-                  : undefined;
+        const endReasonParam = endReasonToAnalyticsParam(result.endReason);
 
         trackEvent(EventName.GameEnd, {
           mode: 'single',
@@ -458,6 +457,11 @@ export function SinglePlayPage() {
   const announceText = () => {
     if (isEnded) {
       const difficultyText = resolvedDifficulty === difficultyLevel.Easy ? '쉬움' : '어려움';
+      if (winner === null) {
+        // 무승부는 2인 모드 배너와 같은 형식으로 사유를 함께 보여준다
+        const label = endReasonShortLabel(endReason);
+        return `(${difficultyText}) 무승부!${label ? ` (${label})` : ''}`;
+      }
       const winText = winner === humanColor ? '승리' : '패배';
       return `(${difficultyText}) ${winText}!`;
     } else if (isInCheck) {

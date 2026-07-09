@@ -3,7 +3,8 @@ import { PageHeader } from '@/components/PageHeader';
 import { Board } from '@/engine/board';
 import { Game } from '@/engine/game';
 import { trackEvent } from '@/lib/utils';
-import { EventName, type EventParams } from '@/types/analyticsEvent';
+import { EventName, endReasonToAnalyticsParam, type EventParams } from '@/types/analyticsEvent';
+import { endReasonShortLabel } from '@/lib/gameText';
 import {
   Color,
   type Move,
@@ -113,6 +114,10 @@ export function TwoPlayerPage() {
     saveTwoPlayerGame({
       pieces: serializeBoard(targetGame.getBoard()),
       currentPlayer: targetGame.getCurrentPlayer(),
+      halfmoveClock: targetGame.getHalfmoveClock(),
+      repetitionCounts: targetGame
+        .getRepetitionCounts()
+        .map(([hash, count]) => [hash.toString(), count]),
       gameId: gameIdRef.current,
       gameStartAt: gameStartAtRef.current,
     });
@@ -120,7 +125,10 @@ export function TwoPlayerPage() {
 
   const restoreGame = (saved: SavedTwoPlayerGame) => {
     const restoredBoard = buildBoardFromPieces(saved.pieces);
-    const newGame = new Game(restoredBoard, saved.currentPlayer);
+    const newGame = new Game(restoredBoard, saved.currentPlayer, undefined, {
+      halfmoveClock: saved.halfmoveClock,
+      repetitionCounts: saved.repetitionCounts.map(([hash, count]) => [BigInt(hash), count]),
+    });
     newGame.startGame();
     setGame(newGame);
     setBoard(newGame.getBoard());
@@ -183,16 +191,7 @@ export function TwoPlayerPage() {
               ? 'black'
               : 'draw';
 
-        const endReasonParam =
-          result.endReason === GameEndReason.Checkmate
-            ? 'checkmate'
-            : result.endReason === GameEndReason.Stalemate
-              ? 'stalemate'
-              : result.endReason === GameEndReason.LoneIsland
-                ? 'lone_island'
-                : result.endReason === GameEndReason.OnlyKingLeft
-                  ? 'only_king_left'
-                  : undefined;
+        const endReasonParam = endReasonToAnalyticsParam(result.endReason);
 
         trackEvent(EventName.GameEnd, {
           mode: 'two',
@@ -286,18 +285,10 @@ export function TwoPlayerPage() {
 
   const announceText = () => {
     if (isEnded) {
-      switch (endReason) {
-        case GameEndReason.Checkmate:
-          return `체크메이트!`;
-        case GameEndReason.Stalemate:
-          return `스틸메이트!`;
-        case GameEndReason.LoneIsland:
-          return `외딴 섬!`;
-        case GameEndReason.OnlyKingLeft:
-          return `왕만 남음!`;
-        default:
-          return `게임 종료!`;
-      }
+      const label = endReasonShortLabel(endReason);
+      if (!label) return `게임 종료!`;
+      // 무승부(스틸메이트 포함)는 사유를 괄호로 함께 보여준다
+      return winner === null ? `무승부! (${label})` : `${label}!`;
     } else if (isInCheck) {
       return `체크!`;
     } else if (captureForced) {
