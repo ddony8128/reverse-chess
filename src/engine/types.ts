@@ -128,6 +128,8 @@ export const GameEndReason = {
   Stalemate: 'Stalemate',
   LoneIsland: 'Lone island',
   OnlyKingLeft: 'Only king left',
+  ThreefoldRepetition: 'Threefold repetition',
+  FiftyMoveRule: 'Fifty move rule',
 } as const;
 
 export type GameEndReason = (typeof GameEndReason)[keyof typeof GameEndReason];

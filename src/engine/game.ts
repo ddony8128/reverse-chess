@@ -12,6 +12,21 @@ import {
 } from './types';
 import type { Move, Piece, Location } from './types';
 import { computeZobristHash, toggleSideToMove, type ZobristHash } from '@/lib/zobristHash';
+
+/**
+ * 50수 규칙: 캡처·폰 이동 없이 이 플라이 수(양측 합산)에 도달하면 무승부.
+ * 표준 체스의 "50수"는 양측 각 50수이므로 100플라이.
+ */
+export const FIFTY_MOVE_LIMIT_PLIES = 100;
+
+/**
+ * 저장/복원용 규칙 상태. 현재 포지션(배치+차례)은 보드에서 파생되므로 제외한다.
+ * repetitionCounts는 현재 포지션을 포함한 (포지션 해시 → 등장 횟수) 목록.
+ */
+export type RuleState = {
+  halfmoveClock: number;
+  repetitionCounts?: ReadonlyArray<readonly [ZobristHash, number]>;
+};
 import {
   encodeMove,
   encodeMoveParts,
@@ -27,6 +42,10 @@ export interface GameAPI {
   getWinner(): Color | null;
   getBoardHash(): ZobristHash;
   getEndReason(): GameEndReason | null;
+  getHalfmoveClock(): number;
+  getRepetitionCounts(): ReadonlyArray<readonly [ZobristHash, number]>;
+  isThreefoldRepetition(): boolean;
+  isFiftyMoveDraw(): boolean;
 
   startGame(): { success: boolean; error?: GameError };
   progressTurn(
@@ -78,7 +97,20 @@ export class Game implements GameAPI {
 
   private boardHash: ZobristHash;
 
-  constructor(board?: Board, currentPlayer?: Color, searchCacheLimit?: number) {
+  // 무승부 규칙 상태. 탐색 캐시(cachedLegalMoveCodes 등)와 달리 지우면 오답이 되는
+  // 게임 규칙 상태이므로 OOM 가드(prepareSearchCacheSlot)의 대상이 아니며,
+  // 실게임 플라이 수만큼만 자라므로 상한도 두지 않는다.
+  // progressTurn 경로에서만 갱신한다 — 탐색(applyMoveForSearch)과
+  // 합법수 probe(applyMove)는 규칙 상태를 건드리지 않는다.
+  private halfmoveClock: number;
+  private positionCounts: Map<ZobristHash, number>;
+
+  constructor(
+    board?: Board,
+    currentPlayer?: Color,
+    searchCacheLimit?: number,
+    ruleState?: RuleState,
+  ) {
     this.searchCacheLimit = searchCacheLimit ?? Game.MAX_CACHED_POSITIONS;
     this.board = board ?? new Board();
 
@@ -94,6 +126,14 @@ export class Game implements GameAPI {
     this.cachedCheck = new Map();
 
     this.boardHash = computeZobristHash(this.board, this.currentPlayer);
+
+    this.halfmoveClock = ruleState?.halfmoveClock ?? 0;
+    this.positionCounts = new Map(ruleState?.repetitionCounts ?? []);
+    // 불변식: 현재 포지션은 항상 1회 이상으로 계산돼 있어야 한다 (FIDE: 시작 포지션도 1회).
+    // 복원 데이터가 빈 배열이거나 현재 포지션을 누락해도 여기서 자가 보정된다.
+    if ((this.positionCounts.get(this.boardHash) ?? 0) === 0) {
+      this.bumpPositionCount(this.boardHash);
+    }
   }
 
   getBoard(): Board {
@@ -114,6 +154,28 @@ export class Game implements GameAPI {
 
   getEndReason(): GameEndReason | null {
     return this.endReason;
+  }
+
+  getHalfmoveClock(): number {
+    return this.halfmoveClock;
+  }
+
+  /** 저장/복원용 (포지션 해시 → 등장 횟수) 목록. 현재 포지션 포함. */
+  getRepetitionCounts(): ReadonlyArray<readonly [ZobristHash, number]> {
+    return [...this.positionCounts.entries()];
+  }
+
+  /** 현재 포지션(배치+차례)이 통산 3회 이상 등장했는가. */
+  isThreefoldRepetition(): boolean {
+    return (this.positionCounts.get(this.boardHash) ?? 0) >= 3;
+  }
+
+  isFiftyMoveDraw(): boolean {
+    return this.halfmoveClock >= FIFTY_MOVE_LIMIT_PLIES;
+  }
+
+  private bumpPositionCount(hash: ZobristHash): void {
+    this.positionCounts.set(hash, (this.positionCounts.get(hash) ?? 0) + 1);
   }
 
   startGame(): { success: boolean; error?: GameError } {
@@ -172,6 +234,9 @@ export class Game implements GameAPI {
       return { success, end, winner, error, endReason };
     }
 
+    // 폰 이동 여부는 apply 전에 읽는다 — 승격되면 changePieceType이 타입을 바꾼다
+    const wasPawnMove = move.piece?.type === PieceType.Pawn;
+
     const appliedMove = this.applyMove(move);
     if (appliedMove === null) {
       error = GameError.InvalidMove;
@@ -181,6 +246,20 @@ export class Game implements GameAPI {
     success = true;
     this.history.push(appliedMove);
     this.switchPlayer();
+
+    // 50수 클럭: 캡처·폰 이동이면 리셋, 아니면 증가.
+    // 반복 카운트: switchPlayer 후의 해시가 방금 도달한 국면(배치+차례)이다.
+    if (appliedMove.captured || wasPawnMove) {
+      this.halfmoveClock = 0;
+      // 비가역 수(잡힌 말은 부활하지 않고 폰은 후진하지 못함) 이전의 포지션은
+      // 다시 나올 수 없으므로 카운트를 비워도 판정이 동일하다.
+      // progressTurn에는 롤백이 없어 안전하며, 맵과 저장 페이로드가
+      // 클럭 상한(FIFTY_MOVE_LIMIT_PLIES + 1) 이내로 제한된다.
+      this.positionCounts.clear();
+    } else {
+      this.halfmoveClock++;
+    }
+    this.bumpPositionCount(this.boardHash);
 
     const isOnlyKingLeft = this.isOnlyKingLeft(opponent);
     if (isOnlyKingLeft) {
@@ -214,6 +293,22 @@ export class Game implements GameAPI {
       winner = opponent;
       endReason = GameEndReason.LoneIsland;
       this.finishGame(opponent, GameEndReason.LoneIsland);
+      return { success, end, winner, error, endReason };
+    }
+
+    if (this.isThreefoldRepetition()) {
+      end = true;
+      winner = null;
+      endReason = GameEndReason.ThreefoldRepetition;
+      this.finishGame(null, GameEndReason.ThreefoldRepetition);
+      return { success, end, winner, error, endReason };
+    }
+
+    if (this.isFiftyMoveDraw()) {
+      end = true;
+      winner = null;
+      endReason = GameEndReason.FiftyMoveRule;
+      this.finishGame(null, GameEndReason.FiftyMoveRule);
       return { success, end, winner, error, endReason };
     }
 
