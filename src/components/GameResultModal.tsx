@@ -47,12 +47,19 @@ export function GameResultModal({
     if (endReason === GameEndReason.OnlyKingLeft) {
       return '왕만 남음! ';
     }
+    if (endReason === GameEndReason.ThreefoldRepetition) {
+      return '같은 모양의 판이 세 번 반복되었습니다. ';
+    }
+    if (endReason === GameEndReason.FiftyMoveRule) {
+      return '50수 동안 잡힌 말이 없고 폰도 움직이지 않았습니다. ';
+    }
     return '';
   };
 
   const getSubText = () => {
+    // 무승부는 제목("무승부!")과 사유 설명 문장으로 충분하므로 별도 격려문을 붙이지 않는다
     if (winner === 'draw') {
-      return '비겼습니다';
+      return '';
     }
 
     if (isTwoPlayer) {
@@ -66,13 +73,15 @@ export function GameResultModal({
     }
   };
 
-  const isVictory = isTwoPlayer || winner === singlePlayerColor;
+  const isDraw = winner === 'draw';
+  // 무승부는 승리 연출(금색 글로우)을 쓰지 않는다. 악수 이모지의 부드러운 부유만 공유한다.
+  const isVictory = !isDraw && (isTwoPlayer || winner === singlePlayerColor);
 
   return (
     <div className="modal-overlay">
       <div className="modal-content max-w-md px-20">
-        <div className={`mb-4 text-6xl ${isVictory ? 'animate-float' : ''}`}>
-          {winner === 'draw' ? '🤝' : isVictory ? '🏆' : '😢'}
+        <div className={`mb-4 text-6xl ${isVictory || isDraw ? 'animate-float' : ''}`}>
+          {isDraw ? '🤝' : isVictory ? '🏆' : '😢'}
         </div>
         <h2
           className={`mb-2 text-4xl font-bold ${isVictory ? 'text-primary animate-glow' : 'text-foreground'}`}
